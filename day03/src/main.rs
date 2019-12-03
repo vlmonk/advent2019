@@ -21,6 +21,12 @@ enum Step {
     Left(i32),
 }
 
+#[derive(PartialEq, Debug)]
+struct Point {
+    x: i32,
+    y: i32,
+}
+
 impl Step {
     fn parse(input: &str) -> Self {
         let dir = input.chars().nth(0).unwrap();
@@ -75,7 +81,15 @@ impl Segment {
         }
     }
 
-    fn build(input: &str) -> Vec<Segment> {
+    fn parse(input: &str) -> Vec<Segment> {
+        input
+            .lines()
+            .map(|line| Segment::parse_line(line))
+            .flatten()
+            .collect()
+    }
+
+    fn parse_line(input: &str) -> Vec<Segment> {
         let mut result = vec![];
         let mut x = 0;
         let mut y = 0;
@@ -92,21 +106,55 @@ impl Segment {
     }
 }
 
-fn cross(a: &Segment, b: &Segment) -> Option<(i32, i32)> {
+impl Point {
+    fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
+
+    fn distance(&self) -> i32 {
+        self.x.abs() + self.y.abs()
+    }
+}
+
+fn cross(a: &Segment, b: &Segment) -> Option<Point> {
     if a.dir == Direction::Horizontal && b.dir == Direction::Vertical {
         if a.x0 < b.x0 && a.x1 > b.x0 && b.y0 < a.y0 && b.y1 > a.y0 {
-            return Some((b.x0, a.y0));
+            return Some(Point::new(b.x0, a.y0));
         }
     } else if a.dir == Direction::Vertical && b.dir == Direction::Horizontal {
         if b.x0 < a.x0 && b.x1 > a.x0 && a.y0 < b.y0 && a.y1 > b.y0 {
-            return Some((a.x0, b.y0));
+            return Some(Point::new(a.x0, b.y0));
         }
     }
     None
 }
 
+fn cross_distance(input: &[Segment]) -> Option<i32> {
+    let len = input.len();
+    dbg!(len);
+
+    let cross = (0..len)
+        .map(|i| (i..len).map(move |j| cross(&input[i], &input[j])))
+        .flatten()
+        .filter_map(|point| point.map(|p| p.distance()))
+        .collect::<Vec<_>>();
+
+    cross.into_iter().fold(None, |a, e| match a {
+        None => Some(e),
+        Some(a) if a > e => Some(e),
+        Some(a) => Some(a),
+    })
+}
+
 fn main() {
-    println!("Hello, world!");
+    let input = "R75,D30,R83,U83,L12,D49,R71,U7,L72\nU62,R66,U55,R34,D71,R55,D58,R83\n";
+    let segments = Segment::parse(input);
+    for i in 0..segments.len() {
+        for j in i..segments.len() {
+            let r = cross(&segments[i], &segments[j]);
+            dbg!(r);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -148,7 +196,7 @@ mod test {
     #[test]
     fn test_build() {
         let input = "R10,U1\n";
-        let result = Segment::build(input);
+        let result = Segment::parse(input);
         let expected = vec![Segment::new(0, 0, 10, 0), Segment::new(10, 0, 10, 1)];
 
         assert_eq!(expected, result);
@@ -161,12 +209,33 @@ mod test {
             cross(&Segment::new(0, 0, 10, 0), &Segment::new(0, 0, 5, 0))
         );
         assert_eq!(
-            Some((5, 0)),
+            Some(Point::new(5, 0)),
             cross(&Segment::new(0, 0, 10, 0), &Segment::new(5, 5, 5, -5))
         );
         assert_eq!(
-            Some((2, 1)),
+            Some(Point::new(2, 1)),
             cross(&Segment::new(2, 2, 2, -2), &Segment::new(3, 1, 1, 1))
         );
+    }
+
+    #[test]
+    fn test_cross_distance_1() {
+        let input = "R8,U5,L5,D3\nU7,R6,D4,L4";
+        let segments = Segment::parse(input);
+        assert_eq!(Some(6), cross_distance(&segments));
+    }
+
+    #[test]
+    fn test_cross_distance_2() {
+        let input = "R75,D30,R83,U83,L12,D49,R71,U7,L72\nU62,R66,U55,R34,D71,R55,D58,R83";
+        let segments = Segment::parse(input);
+        assert_eq!(Some(159), cross_distance(&segments));
+    }
+    #[test]
+    fn test_cross_distance_3() {
+        let input =
+            "R98,U47,R26,D63,R33,U87,L62,D20,R33,U53,R51\nU98,R91,D20,R16,D67,R40,U7,R15,U6,R7";
+        let segments = Segment::parse(input);
+        assert_eq!(Some(135), cross_distance(&segments));
     }
 }
