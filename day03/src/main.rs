@@ -1,3 +1,6 @@
+use std::fmt;
+use std::fs;
+
 #[derive(PartialEq, Debug)]
 enum Direction {
     Horizontal,
@@ -11,6 +14,7 @@ struct Segment {
     x1: i32,
     y1: i32,
     dir: Direction,
+    wire_id: usize,
 }
 
 #[derive(PartialEq, Debug)]
@@ -52,7 +56,7 @@ impl Step {
 }
 
 impl Segment {
-    fn new(mut x0: i32, mut y0: i32, mut x1: i32, mut y1: i32) -> Segment {
+    fn new(mut x0: i32, mut y0: i32, mut x1: i32, mut y1: i32, wire_id: usize) -> Segment {
         if x0 > x1 {
             std::mem::swap(&mut x0, &mut x1)
         }
@@ -67,6 +71,7 @@ impl Segment {
                 x1,
                 y1,
                 dir: Direction::Vertical,
+                wire_id,
             }
         } else if y0 == y1 && x0 != x1 {
             Segment {
@@ -75,6 +80,7 @@ impl Segment {
                 x1,
                 y1,
                 dir: Direction::Horizontal,
+                wire_id,
             }
         } else {
             panic!("invalid segment")
@@ -84,12 +90,13 @@ impl Segment {
     fn parse(input: &str) -> Vec<Segment> {
         input
             .lines()
-            .map(|line| Segment::parse_line(line))
+            .enumerate()
+            .map(|(i, line)| Segment::parse_line(line, i))
             .flatten()
             .collect()
     }
 
-    fn parse_line(input: &str) -> Vec<Segment> {
+    fn parse_line(input: &str, wire_id: usize) -> Vec<Segment> {
         let mut result = vec![];
         let mut x = 0;
         let mut y = 0;
@@ -97,12 +104,31 @@ impl Segment {
         input.split(',').for_each(|step| {
             let step = Step::parse(step);
             let (x1, y1) = step.next(x, y);
-            result.push(Segment::new(x, y, x1, y1));
+            result.push(Segment::new(x, y, x1, y1, wire_id));
 
             x = x1;
             y = y1;
         });
         result
+    }
+}
+
+impl fmt::Display for Segment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Segment ID: {} {} ({},{}) -> ({},{})",
+            self.wire_id, self.dir, self.x0, self.y0, self.x1, self.y1
+        )
+    }
+}
+
+impl fmt::Display for Direction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Horizontal => write!(f, "-"),
+            Self::Vertical => write!(f, "|"),
+        }
     }
 }
 
@@ -116,27 +142,32 @@ impl Point {
     }
 }
 
-fn cross(a: &Segment, b: &Segment) -> Option<Point> {
-    if a.dir == Direction::Horizontal && b.dir == Direction::Vertical {
-        if a.x0 < b.x0 && a.x1 > b.x0 && b.y0 < a.y0 && b.y1 > a.y0 {
-            return Some(Point::new(b.x0, a.y0));
-        }
-    } else if a.dir == Direction::Vertical && b.dir == Direction::Horizontal {
-        if b.x0 < a.x0 && b.x1 > a.x0 && a.y0 < b.y0 && a.y1 > b.y0 {
-            return Some(Point::new(a.x0, b.y0));
-        }
+fn cross<'a>(mut a: &'a Segment, mut b: &'a Segment) -> Option<Point> {
+    if a.dir == b.dir {
+        return None;
     }
-    None
+
+    if a.dir == Direction::Vertical {
+        std::mem::swap(&mut a, &mut b)
+    }
+
+    // a - horizontal, b - vertical
+
+    if a.x0 < b.x0 && a.x1 > b.x0 && b.y0 < a.y0 && b.y1 > a.y0 {
+        Some(Point::new(b.x0, a.y0))
+    } else {
+        None
+    }
 }
 
 fn cross_distance(input: &[Segment]) -> Option<i32> {
     let len = input.len();
-    dbg!(len);
 
     let cross = (0..len)
-        .map(|i| (i..len).map(move |j| cross(&input[i], &input[j])))
+        .map(|i| (i..len).map(move |j| (&input[i], &input[j])))
         .flatten()
-        .filter_map(|point| point.map(|p| p.distance()))
+        .filter(|(a, b)| a.wire_id != b.wire_id)
+        .filter_map(|(a, b)| cross(a, b).map(|p| p.distance()))
         .collect::<Vec<_>>();
 
     cross.into_iter().fold(None, |a, e| match a {
@@ -147,13 +178,12 @@ fn cross_distance(input: &[Segment]) -> Option<i32> {
 }
 
 fn main() {
-    let input = "R75,D30,R83,U83,L12,D49,R71,U7,L72\nU62,R66,U55,R34,D71,R55,D58,R83\n";
-    let segments = Segment::parse(input);
-    for i in 0..segments.len() {
-        for j in i..segments.len() {
-            let r = cross(&segments[i], &segments[j]);
-            dbg!(r);
-        }
+    let input = fs::read_to_string("input.txt").expect("input.txt not found");
+    let segments = Segment::parse(&input);
+    if let Some(q1) = cross_distance(&segments) {
+        println!("Q1: {}", q1);
+    } else {
+        println!("Q1: Not found");
     }
 }
 
@@ -175,8 +205,9 @@ mod test {
             x1: 10,
             y1: 0,
             dir: Direction::Horizontal,
+            wire_id: 123,
         };
-        let parsed = Segment::new(0, 0, 10, 0);
+        let parsed = Segment::new(0, 0, 10, 0, 123);
         assert_eq!(expected, parsed);
     }
 
@@ -188,8 +219,9 @@ mod test {
             x1: 0,
             y1: 0,
             dir: Direction::Horizontal,
+            wire_id: 10,
         };
-        let parsed = Segment::new(0, 0, -10, 0);
+        let parsed = Segment::new(0, 0, -10, 0, 10);
         assert_eq!(expected, parsed);
     }
 
@@ -197,7 +229,7 @@ mod test {
     fn test_build() {
         let input = "R10,U1\n";
         let result = Segment::parse(input);
-        let expected = vec![Segment::new(0, 0, 10, 0), Segment::new(10, 0, 10, 1)];
+        let expected = vec![Segment::new(0, 0, 10, 0, 0), Segment::new(10, 0, 10, 1, 0)];
 
         assert_eq!(expected, result);
     }
@@ -206,15 +238,15 @@ mod test {
     fn test_cross() {
         assert_eq!(
             None,
-            cross(&Segment::new(0, 0, 10, 0), &Segment::new(0, 0, 5, 0))
+            cross(&Segment::new(0, 0, 10, 0, 0), &Segment::new(0, 0, 5, 0, 1))
         );
         assert_eq!(
             Some(Point::new(5, 0)),
-            cross(&Segment::new(0, 0, 10, 0), &Segment::new(5, 5, 5, -5))
+            cross(&Segment::new(0, 0, 10, 0, 0), &Segment::new(5, 5, 5, -5, 1))
         );
         assert_eq!(
             Some(Point::new(2, 1)),
-            cross(&Segment::new(2, 2, 2, -2), &Segment::new(3, 1, 1, 1))
+            cross(&Segment::new(2, 2, 2, -2, 0), &Segment::new(3, 1, 1, 1, 1))
         );
     }
 
@@ -229,6 +261,10 @@ mod test {
     fn test_cross_distance_2() {
         let input = "R75,D30,R83,U83,L12,D49,R71,U7,L72\nU62,R66,U55,R34,D71,R55,D58,R83";
         let segments = Segment::parse(input);
+        for i in segments.iter() {
+            println!("{}", i)
+        }
+
         assert_eq!(Some(159), cross_distance(&segments));
     }
     #[test]
