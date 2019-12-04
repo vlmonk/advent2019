@@ -49,6 +49,20 @@ impl Wire {
         });
         Self { 0: result }
     }
+
+    pub fn steps_to(&self, p: &Point) -> Option<i32> {
+        let mut current = 0;
+
+        for step in self.0.iter() {
+            if step.constain(p) {
+                return Some(current + step.start().distance_to(p));
+            } else {
+                current = current + step.lenght();
+            }
+        }
+
+        None
+    }
 }
 
 // Board - 2 set of segments
@@ -68,13 +82,18 @@ impl Board {
     }
 
     pub fn cross_distance(&self) -> Option<i32> {
+        self.crossing().map(|point| point.distance()).min()
+    }
+
+    pub fn step_distance(&self) -> Option<i32> {
         self.crossing()
-            .map(|point| point.distance())
-            .fold(None, |a, e| match a {
-                None => Some(e),
-                Some(a) if a > e => Some(e),
-                Some(a) => Some(a),
-            })
+            .filter_map(
+                |point| match (self.a.steps_to(&point), self.b.steps_to(&point)) {
+                    (Some(a), Some(b)) => Some(a + b),
+                    _ => None,
+                },
+            )
+            .min()
     }
 
     fn crossing(&self) -> impl Iterator<Item = Point> + '_ {
@@ -127,6 +146,55 @@ impl Segment {
             dir,
         }
     }
+
+    pub fn constain(&self, p: &Point) -> bool {
+        match self.dir {
+            Direction::Horizontal => p.x >= self.x_min() && p.x <= self.x_max() && p.y == self.y0,
+            Direction::Vertical => p.y >= self.y_min() && p.y <= self.y_max() && p.x == self.x0,
+        }
+    }
+
+    pub fn start(&self) -> Point {
+        Point {
+            x: self.x0,
+            y: self.y0,
+        }
+    }
+
+    fn x_min(&self) -> i32 {
+        if self.x0 <= self.x1 {
+            self.x0
+        } else {
+            self.x1
+        }
+    }
+
+    fn x_max(&self) -> i32 {
+        if self.x0 <= self.x1 {
+            self.x1
+        } else {
+            self.x0
+        }
+    }
+    fn y_min(&self) -> i32 {
+        if self.y0 <= self.y1 {
+            self.y0
+        } else {
+            self.y1
+        }
+    }
+
+    fn y_max(&self) -> i32 {
+        if self.y0 <= self.y1 {
+            self.y1
+        } else {
+            self.y0
+        }
+    }
+
+    fn lenght(&self) -> i32 {
+        (self.x1 - self.x0).abs() + (self.y1 - self.y0).abs()
+    }
 }
 
 impl fmt::Display for Segment {
@@ -155,6 +223,10 @@ impl Point {
 
     fn distance(&self) -> i32 {
         self.x.abs() + self.y.abs()
+    }
+
+    fn distance_to(&self, p: &Point) -> i32 {
+        (self.x - p.x).abs() + (self.y - p.y).abs()
     }
 }
 
@@ -187,10 +259,14 @@ fn main() {
     let input = fs::read_to_string("input.txt").expect("input.txt not found");
     let board = Board::parse(&input);
 
-    if let Some(q1) = board.cross_distance() {
-        println!("Q1: {}", q1);
-    } else {
-        println!("Q1: Not found");
+    match board.cross_distance() {
+        Some(q1) => println!("Q1: {}", q1),
+        _ => println!("Q1: Not found"),
+    }
+
+    match board.step_distance() {
+        Some(q2) => println!("Q1: {}", q2),
+        _ => println!("Q1: Not found"),
     }
 }
 
