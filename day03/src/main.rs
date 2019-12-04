@@ -47,19 +47,21 @@ impl Board {
     }
 
     pub fn cross_distance(&self) -> Option<i32> {
-        let cross = self
-            .a
-            .iter()
-            .map(|a| self.b.iter().map(move |b| (a, b)))
-            .flatten()
-            .filter_map(|(a, b)| cross(a, b).map(|p| p.distance()))
-            .collect::<Vec<_>>();
+        self.crossing()
+            .map(|point| point.distance())
+            .fold(None, |a, e| match a {
+                None => Some(e),
+                Some(a) if a > e => Some(e),
+                Some(a) => Some(a),
+            })
+    }
 
-        cross.into_iter().fold(None, |a, e| match a {
-            None => Some(e),
-            Some(a) if a > e => Some(e),
-            Some(a) => Some(a),
-        })
+    fn crossing(&self) -> impl Iterator<Item = Point> + '_ {
+        self.a
+            .iter()
+            .map(move |a| self.b.iter().map(move |b| (a, b)))
+            .flatten()
+            .filter_map(|(a, b)| cross(a, b))
     }
 }
 
