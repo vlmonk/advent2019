@@ -88,32 +88,19 @@ impl Step {
 }
 
 impl Segment {
-    fn new(mut x0: i32, mut y0: i32, mut x1: i32, mut y1: i32) -> Segment {
-        if x0 > x1 {
-            std::mem::swap(&mut x0, &mut x1)
-        }
+    fn new(x0: i32, y0: i32, x1: i32, y1: i32) -> Segment {
+        let dir = match (x0, x1, y0, y1) {
+            (x0, x1, y0, y1) if x0 == x1 && y0 != y1 => Direction::Vertical,
+            (x0, x1, y0, y1) if x0 != x1 && y0 == y1 => Direction::Horizontal,
+            _ => panic!("invalid segment"),
+        };
 
-        if y0 > y1 {
-            std::mem::swap(&mut y0, &mut y1)
-        }
-        if x0 == x1 && y0 != y1 {
-            Segment {
-                x0,
-                y0,
-                x1,
-                y1,
-                dir: Direction::Vertical,
-            }
-        } else if y0 == y1 && x0 != x1 {
-            Segment {
-                x0,
-                y0,
-                x1,
-                y1,
-                dir: Direction::Horizontal,
-            }
-        } else {
-            panic!("invalid segment")
+        Segment {
+            x0,
+            y0,
+            x1,
+            y1,
+            dir,
         }
     }
 
@@ -163,18 +150,25 @@ impl Point {
     }
 }
 
-fn cross<'a>(mut a: &'a Segment, mut b: &'a Segment) -> Option<Point> {
+fn cross<'a>(a: &'a Segment, b: &'a Segment) -> Option<Point> {
     if a.dir == b.dir {
         return None;
     }
 
-    if a.dir == Direction::Vertical {
-        std::mem::swap(&mut a, &mut b)
-    }
+    let (a, b) = match (a, b) {
+        (a, b) if a.dir == Direction::Vertical => (b, a),
+        (a, b) => (a, b),
+    };
 
     // a - horizontal, b - vertical
 
-    if a.x0 < b.x0 && a.x1 > b.x0 && b.y0 < a.y0 && b.y1 > a.y0 {
+    let x_min = a.x0.min(a.x1);
+    let x_max = a.x0.max(a.x1);
+
+    let y_min = b.y0.min(b.y1);
+    let y_max = b.y0.max(b.y1);
+
+    if x_min < b.x0 && x_max > b.x0 && y_min < a.y0 && y_max > a.y0 {
         Some(Point::new(b.x0, a.y0))
     } else {
         None
@@ -224,7 +218,7 @@ mod test {
             y1: 0,
             dir: Direction::Horizontal,
         };
-        let parsed = Segment::new(0, 0, -10, 0);
+        let parsed = Segment::new(-10, 0, 0, 0);
         assert_eq!(expected, parsed);
     }
 
