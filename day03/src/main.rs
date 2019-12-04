@@ -30,16 +30,37 @@ struct Point {
     y: i32,
 }
 
+#[derive(PartialEq, Debug)]
+struct Wire(Vec<Segment>);
+
+impl Wire {
+    pub fn parse(input: &str) -> Self {
+        let mut result = vec![];
+        let mut x = 0;
+        let mut y = 0;
+
+        input.split(',').for_each(|step| {
+            let step = Step::parse(step);
+            let (x1, y1) = step.next(x, y);
+            result.push(Segment::new(x, y, x1, y1));
+
+            x = x1;
+            y = y1;
+        });
+        Self { 0: result }
+    }
+}
+
 // Board - 2 set of segments
 #[derive(PartialEq, Debug)]
 struct Board {
-    a: Vec<Segment>,
-    b: Vec<Segment>,
+    a: Wire,
+    b: Wire,
 }
 
 impl Board {
     pub fn parse(input: &str) -> Self {
-        let mut wires = input.lines().map(|line| Segment::parse(line));
+        let mut wires = input.lines().map(|line| Wire::parse(line));
         let a = wires.next().expect("invalid input");
         let b = wires.next().expect("invalid input");
 
@@ -58,8 +79,9 @@ impl Board {
 
     fn crossing(&self) -> impl Iterator<Item = Point> + '_ {
         self.a
+            .0
             .iter()
-            .map(move |a| self.b.iter().map(move |b| (a, b)))
+            .map(move |a| self.b.0.iter().map(move |b| (a, b)))
             .flatten()
             .filter_map(|(a, b)| cross(a, b))
     }
@@ -104,22 +126,6 @@ impl Segment {
             y1,
             dir,
         }
-    }
-
-    fn parse(input: &str) -> Vec<Segment> {
-        let mut result = vec![];
-        let mut x = 0;
-        let mut y = 0;
-
-        input.split(',').for_each(|step| {
-            let step = Step::parse(step);
-            let (x1, y1) = step.next(x, y);
-            result.push(Segment::new(x, y, x1, y1));
-
-            x = x1;
-            y = y1;
-        });
-        result
     }
 }
 
@@ -227,8 +233,10 @@ mod test {
     #[test]
     fn test_build() {
         let input = "R10,U1\n";
-        let result = Segment::parse(input);
-        let expected = vec![Segment::new(0, 0, 10, 0), Segment::new(10, 0, 10, 1)];
+        let result = Wire::parse(input);
+        let expected = Wire {
+            0: vec![Segment::new(0, 0, 10, 0), Segment::new(10, 0, 10, 1)],
+        };
 
         assert_eq!(expected, result);
     }
