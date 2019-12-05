@@ -24,7 +24,11 @@ impl Num {
                 return;
             }
 
-            self.0[i] = 0;
+            if i == 0 {
+                self.0[i] = 0;
+            } else {
+                self.0[i] = self.0[i - 1];
+            }
         }
     }
 }
