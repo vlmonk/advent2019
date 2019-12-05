@@ -47,49 +47,30 @@ fn is_increase(input: &Num) -> bool {
     (0..5).all(|i| input.0[i] <= input.0[i + 1])
 }
 
-struct NumIter {
-    current: Num,
-    max: Num,
-}
-
-impl NumIter {
-    pub fn new(from: i32, to: i32) -> Self {
-        Self {
-            current: Num::from_i32(from),
-            max: Num::from_i32(to),
-        }
-    }
-}
-
-impl Iterator for NumIter {
-    type Item = Num;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.current > self.max {
-            return None;
-        }
-
-        let cloned = self.current.clone();
-        self.current.inc();
-
-        Some(cloned)
-    }
-}
-
 fn main() {
     let now = Instant::now();
 
-    let iter = NumIter::new(137683, 596253);
+    let mut c = Num::from_i32(137683);
+    let max = Num::from_i32(596253);
+
     let mut task_a = 0;
     let mut task_b = 0;
 
-    for i in iter.filter(|i| is_increase(&i)) {
-        if is_2_digit_same(&i) {
-            task_a += 1;
+    loop {
+        if is_increase(&c) {
+            if is_2_digit_same(&c) {
+                task_a += 1;
+            }
+
+            if is_2_digit_same_advanced(&c) {
+                task_b += 1;
+            }
         }
 
-        if is_2_digit_same_advanced(&i) {
-            task_b += 1;
+        c.inc();
+
+        if c > max {
+            break;
         }
     }
 
@@ -97,5 +78,5 @@ fn main() {
     println!("Q2: {}", task_b);
 
     let total_time = now.elapsed();
-    println!("Total time: {}  μs", total_time.as_micros());
+    println!("Total time: {}μs", total_time.as_micros());
 }
