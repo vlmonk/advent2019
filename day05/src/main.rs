@@ -1,3 +1,5 @@
+use std::fs;
+
 #[derive(Debug, PartialEq)]
 enum Mode {
     Position,
@@ -17,12 +19,8 @@ impl Mode {
 #[derive(Debug)]
 enum Command {
     Halt,
-    Input {
-        addr: usize,
-    },
-    Output {
-        addr: usize,
-    },
+    Input(usize),
+    Output(usize),
     Add {
         a: i32,
         b: i32,
@@ -72,6 +70,7 @@ struct CPU {
     output: Vec<i32>,
 
     ip: usize,
+    ticks: usize,
 }
 
 impl CPU {
@@ -81,12 +80,14 @@ impl CPU {
             input,
             output: vec![],
             ip: 0,
+            ticks: 0,
         }
     }
     fn tick(&mut self) -> State {
         let command = decode(&self.mem[self.ip..]);
         self.process(&command);
         self.ip += command.size();
+        self.ticks += 1;
 
         if command.is_halt() {
             State::Halted
@@ -106,11 +107,11 @@ impl CPU {
     fn process(&mut self, command: &Command) {
         match command {
             Command::Halt => {}
-            Command::Input { addr } => {
+            Command::Input(addr) => {
                 let value = self.input.remove(0);
                 self.mem[*addr] = value;
             }
-            Command::Output { addr } => {
+            Command::Output(addr) => {
                 let value = self.mem[*addr];
                 self.output.push(value);
             }
@@ -122,15 +123,8 @@ impl CPU {
                 mode_b,
                 ..
             } => {
-                let a = match mode_a {
-                    Mode::Immediate => *a,
-                    Mode::Position => self.mem[*a as usize],
-                };
-
-                let b = match mode_b {
-                    Mode::Immediate => *b,
-                    Mode::Position => self.mem[*b as usize],
-                };
+                let a = self.get_value(a, mode_a);
+                let b = self.get_value(b, mode_b);
 
                 self.mem[*c as usize] = a + b;
             }
@@ -142,18 +136,18 @@ impl CPU {
                 mode_b,
                 ..
             } => {
-                let a = match mode_a {
-                    Mode::Immediate => *a,
-                    Mode::Position => self.mem[*a as usize],
-                };
-
-                let b = match mode_b {
-                    Mode::Immediate => *b,
-                    Mode::Position => self.mem[*b as usize],
-                };
+                let a = self.get_value(a, mode_a);
+                let b = self.get_value(b, mode_b);
 
                 self.mem[*c as usize] = a * b;
             }
+        }
+    }
+
+    fn get_value(&self, x: &i32, mode_x: &Mode) -> i32 {
+        match mode_x {
+            Mode::Immediate => *x,
+            Mode::Position => self.mem[*x as usize],
         }
     }
 }
@@ -191,14 +185,8 @@ fn decode(mem: &[i32]) -> Command {
             b: mem[2],
             c: mem[3],
         },
-        3 => Command::Input {
-            addr: mem[1] as usize,
-        },
-
-        4 => Command::Output {
-            addr: mem[1] as usize,
-        },
-
+        3 => Command::Input(mem[1] as usize),
+        4 => Command::Output(mem[1] as usize),
         99 => Command::Halt,
         n => panic!("invalid opcode: {}", n),
     }
@@ -215,9 +203,24 @@ fn format_output(output: &[i32]) -> String {
 }
 
 fn main() {
-    let mut cpu = CPU::new(vec![99], vec![]);
+    let raw = fs::read_to_string("input.txt").expect("can't read");
+    let programm = raw
+        .lines()
+        .next()
+        .expect("invalid input")
+        .split(',')
+        .map(|v| v.parse::<i32>().expect("invalid number"))
+        .collect::<Vec<_>>();
+
+    let input = vec![1];
+
+    let mut cpu = CPU::new(programm, input);
     cpu.run();
-    println!("Output: {}", format_output(&cpu.output));
+    println!(
+        "Output: {}, ticks: {}",
+        format_output(&cpu.output),
+        cpu.ticks
+    );
 }
 
 #[cfg(test)]
