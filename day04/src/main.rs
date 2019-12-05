@@ -78,8 +78,8 @@ fn main() {
         }
     }
 
-    println!("Q1: {}", task_a);
-    println!("Q2: {}", task_b);
+    println!("Part I:  {}", task_a);
+    println!("Part II: {}", task_b);
 
     let total_time = now.elapsed();
     println!("Total time: {}μs", total_time.as_micros());
