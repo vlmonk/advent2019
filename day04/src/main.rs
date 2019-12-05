@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 #[derive(Debug)]
 struct Num([u8; 6]);
 
@@ -35,21 +37,28 @@ fn is_increase(input: &Num) -> bool {
 }
 
 fn main() {
+    let now = Instant::now();
+
     let from = 137683;
     let to = 596253;
 
-    let total = (from..to + 1)
-        .map(Num::from_i32)
-        .filter(is_2_digit_same)
-        .filter(is_increase)
-        .count();
+    let total = (from..to + 1).map(Num::from_i32).filter(is_increase);
 
-    let total2 = (from..to + 1)
-        .map(Num::from_i32)
-        .filter(is_2_digit_same_advanced)
-        .filter(is_increase)
-        .count();
+    let mut task_a = 0;
+    let mut task_b = 0;
 
-    println!("Q1: {}", total);
-    println!("Q2: {}", total2);
+    for i in total {
+        if is_2_digit_same_advanced(&i) {
+            task_b += 1;
+        }
+        if is_2_digit_same(&i) {
+            task_a += 1;
+        }
+    }
+
+    println!("Q1: {}", task_a);
+    println!("Q2: {}", task_b);
+
+    let total_time = now.elapsed();
+    println!("Total time: {}  μs", total_time.as_micros());
 }
