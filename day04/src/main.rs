@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
+#[derive(Debug, PartialEq, PartialOrd)]
 struct Num([u8; 6]);
 
 impl Num {
@@ -78,9 +78,9 @@ fn main() {
         }
     }
 
+    let total_time = now.elapsed();
+
     println!("Part I:  {}", task_a);
     println!("Part II: {}", task_b);
-
-    let total_time = now.elapsed();
     println!("Total time: {}μs", total_time.as_micros());
 }
