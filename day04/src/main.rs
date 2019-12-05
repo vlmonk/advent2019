@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 struct Num([u8; 6]);
 
 impl Num {
@@ -14,6 +14,17 @@ impl Num {
 
         Self {
             0: [d0, d1, d2, d3, d4, d5],
+        }
+    }
+
+    fn inc(&mut self) {
+        for i in (0..6).into_iter().rev() {
+            self.0[i] += 1;
+            if self.0[i] != 10 {
+                return;
+            }
+
+            self.0[i] = 0;
         }
     }
 }
@@ -36,23 +47,49 @@ fn is_increase(input: &Num) -> bool {
     (0..5).all(|i| input.0[i] <= input.0[i + 1])
 }
 
+struct NumIter {
+    current: Num,
+    max: Num,
+}
+
+impl NumIter {
+    pub fn new(from: i32, to: i32) -> Self {
+        Self {
+            current: Num::from_i32(from),
+            max: Num::from_i32(to),
+        }
+    }
+}
+
+impl Iterator for NumIter {
+    type Item = Num;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current > self.max {
+            return None;
+        }
+
+        let cloned = self.current.clone();
+        self.current.inc();
+
+        Some(cloned)
+    }
+}
+
 fn main() {
     let now = Instant::now();
 
-    let from = 137683;
-    let to = 596253;
-
-    let total = (from..to + 1).map(Num::from_i32).filter(is_increase);
-
+    let iter = NumIter::new(137683, 596253);
     let mut task_a = 0;
     let mut task_b = 0;
 
-    for i in total {
-        if is_2_digit_same_advanced(&i) {
-            task_b += 1;
-        }
+    for i in iter.filter(|i| is_increase(&i)) {
         if is_2_digit_same(&i) {
             task_a += 1;
+        }
+
+        if is_2_digit_same_advanced(&i) {
+            task_b += 1;
         }
     }
 
