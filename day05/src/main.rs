@@ -26,6 +26,10 @@ enum Command {
     Output(usize),
     Add(i32, i32, i32, ModeSet),
     Mul(i32, i32, i32, ModeSet),
+    JumpTrue(i32, i32, ModeSet),
+    JumpFalse(i32, i32, ModeSet),
+    LessThan(i32, i32, i32, ModeSet),
+    Equals(i32, i32, i32, ModeSet),
 }
 
 impl Command {
@@ -36,6 +40,10 @@ impl Command {
             Self::Output { .. } => 2,
             Self::Add { .. } => 4,
             Self::Mul { .. } => 4,
+            Self::JumpTrue { .. } => 3,
+            Self::JumpFalse { .. } => 3,
+            Self::LessThan { .. } => 4,
+            Self::Equals { .. } => 4,
         }
     }
 
@@ -73,10 +81,15 @@ impl CPU {
         }
     }
     fn tick(&mut self) -> State {
+        let original_ip = self.ip;
+
         let command = decode(&self.mem[self.ip..]);
         self.process(&command);
-        self.ip += command.size();
         self.ticks += 1;
+
+        if self.ip == original_ip {
+            self.ip += command.size();
+        }
 
         if command.is_halt() {
             State::Halted
@@ -116,6 +129,42 @@ impl CPU {
 
                 self.mem[*c as usize] = a * b;
             }
+            Command::JumpTrue(a, b, modeset) => {
+                let a = self.get_value(a, &modeset.0);
+                let b = self.get_value(b, &modeset.1);
+
+                if a != 0 {
+                    self.ip = b as usize;
+                }
+            }
+            Command::JumpFalse(a, b, modeset) => {
+                let a = self.get_value(a, &modeset.0);
+                let b = self.get_value(b, &modeset.1);
+
+                if a == 0 {
+                    self.ip = b as usize;
+                }
+            }
+            Command::LessThan(a, b, c, modeset) => {
+                let a = self.get_value(a, &modeset.0);
+                let b = self.get_value(b, &modeset.1);
+
+                if a < b {
+                    self.mem[*c as usize] = 1
+                } else {
+                    self.mem[*c as usize] = 0
+                }
+            }
+            Command::Equals(a, b, c, modeset) => {
+                let a = self.get_value(a, &modeset.0);
+                let b = self.get_value(b, &modeset.1);
+
+                if a == b {
+                    self.mem[*c as usize] = 1
+                } else {
+                    self.mem[*c as usize] = 0
+                }
+            }
         }
     }
 
@@ -146,6 +195,10 @@ fn decode(mem: &[i32]) -> Command {
         2 => Command::Mul(mem[1], mem[2], mem[3], modeset),
         3 => Command::Input(mem[1] as usize),
         4 => Command::Output(mem[1] as usize),
+        5 => Command::JumpTrue(mem[1], mem[2], modeset),
+        6 => Command::JumpFalse(mem[1], mem[2], modeset),
+        7 => Command::LessThan(mem[1], mem[2], mem[3], modeset),
+        8 => Command::Equals(mem[1], mem[2], mem[3], modeset),
         99 => Command::Halt,
         n => panic!("invalid opcode: {}", n),
     }
@@ -172,15 +225,22 @@ fn main() {
         .map(|v| v.parse::<i32>().expect("invalid number"))
         .collect::<Vec<_>>();
 
-    let input = vec![1];
+    let mut cpu_a = CPU::new(programm.clone(), vec![1]);
+    let mut cpu_b = CPU::new(programm, vec![5]);
 
-    let mut cpu = CPU::new(programm, input);
-    cpu.run();
+    cpu_a.run();
+    cpu_b.run();
+
     let total_time = now.elapsed();
     println!(
-        "Output: {}, ticks: {}",
-        format_output(&cpu.output),
-        cpu.ticks
+        "Task I: {}, ticks: {}",
+        format_output(&cpu_a.output),
+        cpu_a.ticks
+    );
+    println!(
+        "Task II: {}, ticks: {}",
+        format_output(&cpu_b.output),
+        cpu_b.ticks
     );
 
     println!("Total time: {}μs", total_time.as_micros());
