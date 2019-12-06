@@ -1,4 +1,5 @@
 use std::fs;
+use std::time::Instant;
 
 #[derive(Debug, PartialEq)]
 enum Mode {
@@ -16,27 +17,15 @@ impl Mode {
     }
 }
 
+type ModeSet = (Mode, Mode, Mode);
+
 #[derive(Debug)]
 enum Command {
     Halt,
     Input(usize),
     Output(usize),
-    Add {
-        a: i32,
-        b: i32,
-        c: i32,
-        mode_a: Mode,
-        mode_b: Mode,
-        mode_c: Mode,
-    },
-    Mul {
-        a: i32,
-        b: i32,
-        c: i32,
-        mode_a: Mode,
-        mode_b: Mode,
-        mode_c: Mode,
-    },
+    Add(i32, i32, i32, ModeSet),
+    Mul(i32, i32, i32, ModeSet),
 }
 
 impl Command {
@@ -115,29 +104,15 @@ impl CPU {
                 let value = self.mem[*addr];
                 self.output.push(value);
             }
-            Command::Add {
-                a,
-                b,
-                c,
-                mode_a,
-                mode_b,
-                ..
-            } => {
-                let a = self.get_value(a, mode_a);
-                let b = self.get_value(b, mode_b);
+            Command::Add(a, b, c, modeset) => {
+                let a = self.get_value(a, &modeset.0);
+                let b = self.get_value(b, &modeset.1);
 
                 self.mem[*c as usize] = a + b;
             }
-            Command::Mul {
-                a,
-                b,
-                c,
-                mode_a,
-                mode_b,
-                ..
-            } => {
-                let a = self.get_value(a, mode_a);
-                let b = self.get_value(b, mode_b);
+            Command::Mul(a, b, c, modeset) => {
+                let a = self.get_value(a, &modeset.0);
+                let b = self.get_value(b, &modeset.1);
 
                 self.mem[*c as usize] = a * b;
             }
@@ -152,7 +127,7 @@ impl CPU {
     }
 }
 
-fn decode_opcode(input: i32) -> (i32, Mode, Mode, Mode) {
+fn decode_opcode(input: i32) -> (i32, ModeSet) {
     let opcode = input % 100;
     let c = (input / 10_000) % 10;
     let b = (input / 1_000) % 10;
@@ -160,31 +135,15 @@ fn decode_opcode(input: i32) -> (i32, Mode, Mode, Mode) {
 
     (
         opcode,
-        Mode::from_i32(a),
-        Mode::from_i32(b),
-        Mode::from_i32(c),
+        (Mode::from_i32(a), Mode::from_i32(b), Mode::from_i32(c)),
     )
 }
 
 fn decode(mem: &[i32]) -> Command {
-    let (opcode, mode_a, mode_b, mode_c) = decode_opcode(mem[0]);
+    let (opcode, modeset) = decode_opcode(mem[0]);
     match opcode {
-        1 => Command::Add {
-            mode_a,
-            mode_b,
-            mode_c,
-            a: mem[1],
-            b: mem[2],
-            c: mem[3],
-        },
-        2 => Command::Mul {
-            mode_a,
-            mode_b,
-            mode_c,
-            a: mem[1],
-            b: mem[2],
-            c: mem[3],
-        },
+        1 => Command::Add(mem[1], mem[2], mem[3], modeset),
+        2 => Command::Mul(mem[1], mem[2], mem[3], modeset),
         3 => Command::Input(mem[1] as usize),
         4 => Command::Output(mem[1] as usize),
         99 => Command::Halt,
@@ -204,6 +163,7 @@ fn format_output(output: &[i32]) -> String {
 
 fn main() {
     let raw = fs::read_to_string("input.txt").expect("can't read");
+    let now = Instant::now();
     let programm = raw
         .lines()
         .next()
@@ -216,11 +176,14 @@ fn main() {
 
     let mut cpu = CPU::new(programm, input);
     cpu.run();
+    let total_time = now.elapsed();
     println!(
         "Output: {}, ticks: {}",
         format_output(&cpu.output),
         cpu.ticks
     );
+
+    println!("Total time: {}μs", total_time.as_micros());
 }
 
 #[cfg(test)]
@@ -255,11 +218,9 @@ mod test {
 
     #[test]
     fn test_decode_opcode() {
-        let (opcode, a, b, c) = decode_opcode(10102);
+        let (opcode, modeset) = decode_opcode(10102);
         assert_eq!(2, opcode);
-        assert_eq!(Mode::Immediate, a);
-        assert_eq!(Mode::Position, b);
-        assert_eq!(Mode::Immediate, c);
+        assert_eq!((Mode::Immediate, Mode::Position, Mode::Immediate), modeset);
     }
 
     #[test]
