@@ -209,48 +209,6 @@ fn decode(mem: &[i32]) -> Command {
     }
 }
 
-fn format_output(output: &[i32]) -> String {
-    let inner = output
-        .iter()
-        .map(|v| format!("{}", v))
-        .collect::<Vec<_>>()
-        .join(", ");
-
-    format!("[{}]", inner)
-}
-
-// fn main() {
-//     let raw = fs::read_to_string("input.txt").expect("can't read");
-//     let now = Instant::now();
-//     let programm = raw
-//         .lines()
-//         .next()
-//         .expect("invalid input")
-//         .split(',')
-//         .map(|v| v.parse::<i32>().expect("invalid number"))
-//         .collect::<Vec<_>>();
-
-//     let mut cpu_a = CPU::new(programm.clone(), vec![1]);
-//     let mut cpu_b = CPU::new(programm, vec![5]);
-
-//     cpu_a.run();
-//     cpu_b.run();
-
-//     let total_time = now.elapsed();
-//     println!(
-//         "Task I: {}, ticks: {}",
-//         format_output(&cpu_a.output),
-//         cpu_a.ticks
-//     );
-//     println!(
-//         "Task II: {}, ticks: {}",
-//         format_output(&cpu_b.output),
-//         cpu_b.ticks
-//     );
-
-//     println!("Total time: {}μs", total_time.as_micros());
-// }
-
 #[cfg(test)]
 mod test {
     use super::*;
