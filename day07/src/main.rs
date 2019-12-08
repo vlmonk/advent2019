@@ -75,11 +75,7 @@ fn solve_task_1(programm: &[i32]) -> Option<Solution> {
         solutins.push((score, variaint));
     });
 
-    solutins.into_iter().fold(None, |a, e| match a {
-        None => Some(e),
-        Some(a) if a.0 < e.0 => Some(e),
-        Some(a) => Some(a),
-    })
+    solutins.into_iter().max_by_key(|a| a.0)
 }
 
 fn solve_task_2(programm: &[i32]) -> Option<Solution> {
@@ -93,11 +89,7 @@ fn solve_task_2(programm: &[i32]) -> Option<Solution> {
         solutins.push((score, variaint));
     });
 
-    solutins.into_iter().fold(None, |a, e| match a {
-        None => Some(e),
-        Some(a) if a.0 < e.0 => Some(e),
-        Some(a) => Some(a),
-    })
+    solutins.into_iter().max_by_key(|a| a.0)
 }
 
 fn main() {
