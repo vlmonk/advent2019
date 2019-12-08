@@ -42,10 +42,12 @@ impl System {
 
     fn add(&mut self, info: OrbitInfo) {
         let OrbitInfo { primary, secondary } = info;
-        self.orbits.insert(primary, secondary);
+        println!("primary: {}, secondary: {}", primary, secondary);
+        self.orbits.insert(secondary, primary);
     }
 
     fn update(&mut self, key: String) -> i32 {
+        println!("try to update {}", key);
         if let Some(d) = self.distance.get(&key) {
             return *d;
         }
@@ -58,7 +60,7 @@ impl System {
             self.distance.insert(key, distance);
             distance
         } else {
-            1
+            0
         }
     }
 
@@ -68,6 +70,33 @@ impl System {
             self.update(k);
         }
     }
+
+    fn path_to(&self, input: &str) -> Vec<String> {
+        let mut result = vec![];
+        let mut step = input;
+        loop {
+            match self.orbits.get(step) {
+                Some(master) => {
+                    result.push(master.clone());
+                    step = master
+                }
+                None => break,
+            }
+        }
+
+        result.reverse();
+        result
+    }
+}
+
+fn first_diff(a: &[String], b: &[String]) -> usize {
+    let pairs = a.iter().zip(b.iter());
+    let index = pairs
+        .enumerate()
+        .find(|(_, pair)| pair.0 != pair.1)
+        .map(|(i, _)| i);
+
+    index.unwrap_or(a.len())
 }
 
 fn main() -> Result<()> {
@@ -86,6 +115,14 @@ fn main() -> Result<()> {
     system.update_all();
     let total: i32 = system.distance.values().sum();
     dbg!(total);
+
+    let you_path = system.path_to("YOU");
+    let san_path = system.path_to("SAN");
+
+    let x = first_diff(&you_path, &san_path);
+    let y = you_path.len() + san_path.len() - (x * 2);
+
+    dbg!(y);
 
     Ok(())
 }
