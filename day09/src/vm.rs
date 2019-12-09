@@ -88,6 +88,16 @@ enum State {
     Output,
 }
 
+fn parse_programm(input: &str) -> Vec<i64> {
+    input
+        .lines()
+        .next()
+        .expect("invalid input")
+        .split(',')
+        .map(|v| v.parse::<i64>().expect("invalid number"))
+        .collect::<Vec<_>>()
+}
+
 pub struct CPU {
     mem: Mem,
     input: Vec<i64>,
@@ -112,6 +122,12 @@ impl CPU {
             rb: 0,
         }
     }
+
+    pub fn new_from_str(programm: &str, input: Vec<i64>) -> Self {
+        let programm = parse_programm(programm);
+        Self::new(programm, input)
+    }
+
     fn tick(&mut self) -> State {
         let original_ip = self.ip;
 
@@ -299,5 +315,14 @@ mod test {
         cpu.run();
 
         assert_eq!(3, cpu.mem.get(1));
+    }
+
+    #[test]
+    fn test_big_num() {
+        let programm = "1102,34915192,34915192,7,4,7,99,0";
+        let mut cpu = CPU::new_from_str(programm, vec![]);
+        cpu.run();
+
+        assert_eq!(1219070632396864, cpu.output[0]);
     }
 }
