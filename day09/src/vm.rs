@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 #[derive(Debug, PartialEq)]
 enum Mode {
     Position,
@@ -21,40 +19,37 @@ impl Mode {
 type ModeSet = (Mode, Mode, Mode);
 
 struct Mem {
-    raw: HashMap<i64, i64>,
-    max_write: i64,
-    max_read: i64,
+    raw: Vec<i64>,
+    max_addr: usize,
 }
 
 impl Mem {
-    pub fn set(&mut self, addr: i64, value: i64) {
-        self.max_write = self.max_write.max(addr);
-        self.raw.insert(addr, value);
-    }
-
-    pub fn get(&mut self, addr: i64) -> i64 {
-        self.max_read = self.max_read.max(addr);
-        self.raw.get(&addr).map(|v| *v).unwrap_or(0)
-    }
-
-    pub fn setup(programm: &[i64]) -> Self {
-        let mut raw = HashMap::new();
-
-        for (addr, value) in programm.iter().enumerate() {
-            raw.insert(addr as i64, *value);
+    pub fn set(&mut self, addr: usize, value: i64) {
+        if addr > self.max_addr {
+            self.raw.resize_with(addr + 1, Default::default);
+            self.max_addr = addr;
         }
+        self.raw[addr] = value;
+    }
 
-        let max_write = (raw.len() - 1) as i64;
+    pub fn get(&mut self, addr: usize) -> i64 {
+        if addr > self.max_addr {
+            self.raw.resize_with(addr + 1, Default::default);
+            self.max_addr = addr;
+        }
+        self.raw[addr]
+    }
+
+    pub fn setup(programm: Vec<i64>) -> Self {
+        let max_addr = programm.len() - 1;
 
         Self {
-            raw,
-            max_write,
-            max_read: 0,
+            raw: programm,
+            max_addr,
         }
     }
 
     pub fn get_opcodes(&mut self, addr: usize) -> [i64; 4] {
-        let addr = addr as i64;
         [
             self.get(addr),
             self.get(addr + 1),
@@ -114,8 +109,7 @@ fn parse_programm(input: &str) -> Vec<i64> {
 
 pub struct CPUInfo {
     pub ticks: usize,
-    pub max_mem_read: i64,
-    pub max_mem_write: i64,
+    pub addr: usize,
 }
 
 pub struct CPU {
@@ -131,7 +125,7 @@ pub struct CPU {
 
 impl CPU {
     pub fn new(programm: Vec<i64>, input: Vec<i64>) -> Self {
-        let mem = Mem::setup(&programm);
+        let mem = Mem::setup(programm);
 
         Self {
             mem,
@@ -166,6 +160,7 @@ impl CPU {
         }
     }
 
+    #[allow(dead_code)]
     pub fn push(&mut self, i: i64) {
         self.input.push(i);
     }
@@ -178,6 +173,7 @@ impl CPU {
         }
     }
 
+    #[allow(dead_code)]
     pub fn run_part(&mut self) -> Option<i64> {
         loop {
             match self.tick() {
@@ -255,24 +251,23 @@ impl CPU {
     fn get_value(&mut self, addr: i64, mode_x: &Mode) -> i64 {
         match mode_x {
             Mode::Immediate => addr,
-            Mode::Position => self.mem.get(addr),
-            Mode::Relative => self.mem.get(self.rb + addr),
+            Mode::Position => self.mem.get(addr as usize),
+            Mode::Relative => self.mem.get((self.rb + addr) as usize),
         }
     }
 
     fn set_value(&mut self, addr: i64, value: i64, mode_x: &Mode) {
         match mode_x {
             Mode::Immediate => panic!("write with Mode::Immediate"),
-            Mode::Position => self.mem.set(addr, value),
-            Mode::Relative => self.mem.set(self.rb + addr, value),
+            Mode::Position => self.mem.set(addr as usize, value),
+            Mode::Relative => self.mem.set((self.rb + addr) as usize, value),
         }
     }
 
     pub fn info(&self) -> CPUInfo {
         CPUInfo {
             ticks: self.ticks,
-            max_mem_read: self.mem.max_read,
-            max_mem_write: self.mem.max_write,
+            addr: self.mem.max_addr,
         }
     }
 }

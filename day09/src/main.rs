@@ -5,8 +5,8 @@ use vm::{CPUInfo, CPU};
 
 fn result(tag: &str, result: i64, info: CPUInfo) {
     println!(
-        "Task {} : {} (ticks: {}, max_read: {}, max_write: {})",
-        tag, result, info.ticks, info.max_mem_read, info.max_mem_write
+        "Task {} : {} (ticks: {}, max_mem: {})",
+        tag, result, info.ticks, info.addr
     );
 }
 
