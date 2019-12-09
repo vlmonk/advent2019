@@ -22,14 +22,18 @@ type ModeSet = (Mode, Mode, Mode);
 
 struct Mem {
     raw: HashMap<i64, i64>,
+    max_write: i64,
+    max_read: i64,
 }
 
 impl Mem {
     pub fn set(&mut self, addr: i64, value: i64) {
+        self.max_write = self.max_write.max(addr);
         self.raw.insert(addr, value);
     }
 
-    pub fn get(&self, addr: i64) -> i64 {
+    pub fn get(&mut self, addr: i64) -> i64 {
+        self.max_read = self.max_read.max(addr);
         self.raw.get(&addr).map(|v| *v).unwrap_or(0)
     }
 
@@ -40,10 +44,16 @@ impl Mem {
             raw.insert(addr as i64, *value);
         }
 
-        Self { raw }
+        let max_write = (raw.len() - 1) as i64;
+
+        Self {
+            raw,
+            max_write,
+            max_read: 0,
+        }
     }
 
-    pub fn get_opcodes(&self, addr: usize) -> [i64; 4] {
+    pub fn get_opcodes(&mut self, addr: usize) -> [i64; 4] {
         let addr = addr as i64;
         [
             self.get(addr),
@@ -102,13 +112,19 @@ fn parse_programm(input: &str) -> Vec<i64> {
         .collect::<Vec<_>>()
 }
 
+pub struct CPUInfo {
+    pub ticks: usize,
+    pub max_mem_read: i64,
+    pub max_mem_write: i64,
+}
+
 pub struct CPU {
     mem: Mem,
     input: Vec<i64>,
     pub output: Vec<i64>,
 
     ip: usize,
-    pub ticks: usize,
+    ticks: usize,
 
     rb: i64,
 }
@@ -236,7 +252,7 @@ impl CPU {
         }
     }
 
-    fn get_value(&self, addr: i64, mode_x: &Mode) -> i64 {
+    fn get_value(&mut self, addr: i64, mode_x: &Mode) -> i64 {
         match mode_x {
             Mode::Immediate => addr,
             Mode::Position => self.mem.get(addr),
@@ -249,6 +265,14 @@ impl CPU {
             Mode::Immediate => panic!("write with Mode::Immediate"),
             Mode::Position => self.mem.set(addr, value),
             Mode::Relative => self.mem.set(self.rb + addr, value),
+        }
+    }
+
+    pub fn info(&self) -> CPUInfo {
+        CPUInfo {
+            ticks: self.ticks,
+            max_mem_read: self.mem.max_read,
+            max_mem_write: self.mem.max_write,
         }
     }
 }
