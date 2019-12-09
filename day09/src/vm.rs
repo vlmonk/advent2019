@@ -6,7 +6,7 @@ enum Mode {
 }
 
 impl Mode {
-    fn from_i64(input: i64) -> Self {
+    fn from_i64(input: u8) -> Self {
         match input {
             0 => Mode::Position,
             1 => Mode::Immediate,
@@ -49,13 +49,12 @@ impl Mem {
         }
     }
 
-    pub fn get_opcodes(&mut self, addr: usize) -> [i64; 4] {
-        [
-            self.get(addr),
-            self.get(addr + 1),
-            self.get(addr + 2),
-            self.get(addr + 3),
-        ]
+    pub fn get_opcodes(&mut self, addr: usize) -> &[i64] {
+        if (addr + 3) > self.max_addr {
+            self.raw.resize_with(addr + 4, Default::default);
+            self.max_addr = addr;
+        }
+        &self.raw[addr..]
     }
 }
 
@@ -274,9 +273,9 @@ impl CPU {
 
 fn decode_opcode(input: i64) -> (i64, ModeSet) {
     let opcode = input % 100;
-    let c = (input / 10_000) % 10;
-    let b = (input / 1_000) % 10;
-    let a = (input / 100) % 10;
+    let c = (input / 10_000) as u8 % 10;
+    let b = (input / 1_000) as u8 % 10;
+    let a = (input / 100) as u8 % 10;
 
     (
         opcode,
@@ -284,7 +283,7 @@ fn decode_opcode(input: i64) -> (i64, ModeSet) {
     )
 }
 
-fn decode(mem: [i64; 4]) -> Command {
+fn decode(mem: &[i64]) -> Command {
     let (opcode, modeset) = decode_opcode(mem[0]);
     match opcode {
         1 => Command::Add(mem[1], mem[2], mem[3], modeset),
