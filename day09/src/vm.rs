@@ -4,6 +4,7 @@ use std::collections::HashMap;
 enum Mode {
     Position,
     Immediate,
+    Relative,
 }
 
 impl Mode {
@@ -11,6 +12,7 @@ impl Mode {
         match input {
             0 => Mode::Position,
             1 => Mode::Immediate,
+            2 => Mode::Relative,
             n => panic!("invalid mode: {}", n),
         }
     }
@@ -55,14 +57,15 @@ impl Mem {
 #[derive(Debug)]
 enum Command {
     Halt,
-    Input(usize),
-    Output(usize),
+    Input(i64, ModeSet),
+    Output(i64, ModeSet),
     Add(i64, i64, i64, ModeSet),
     Mul(i64, i64, i64, ModeSet),
     JumpTrue(i64, i64, ModeSet),
     JumpFalse(i64, i64, ModeSet),
     LessThan(i64, i64, i64, ModeSet),
     Equals(i64, i64, i64, ModeSet),
+    UpdateRelative(i64),
 }
 
 impl Command {
@@ -77,6 +80,7 @@ impl Command {
             Self::JumpFalse { .. } => 3,
             Self::LessThan { .. } => 4,
             Self::Equals { .. } => 4,
+            Self::UpdateRelative { .. } => 2,
         }
     }
 }
@@ -132,6 +136,7 @@ impl CPU {
         let original_ip = self.ip;
 
         let command = decode(self.mem.get_opcodes(self.ip));
+        dbg!(&command);
         self.process(&command);
         self.ticks += 1;
 
@@ -141,7 +146,7 @@ impl CPU {
 
         match command {
             Command::Halt => State::Halted,
-            Command::Output(_) => State::Output,
+            Command::Output(_, _) => State::Output,
             _ => State::Running,
         }
     }
@@ -171,12 +176,12 @@ impl CPU {
     fn process(&mut self, command: &Command) {
         match command {
             Command::Halt => {}
-            Command::Input(addr) => {
+            Command::Input(addr, modeset) => {
                 let value = self.input.remove(0);
-                self.mem.set(*addr as i64, value);
+                self.set_value(*addr, value, &modeset.0)
             }
-            Command::Output(addr) => {
-                let value = self.get_value(*addr as i64, &Mode::Position);
+            Command::Output(addr, modeset) => {
+                let value = self.get_value(*addr as i64, &modeset.0);
                 self.output.push(value);
             }
             Command::Add(a, b, c, modeset) => {
@@ -225,13 +230,17 @@ impl CPU {
                     self.set_value(*c, 0, &modeset.2)
                 }
             }
+            Command::UpdateRelative(a) => {
+                self.rb += a;
+            }
         }
     }
 
-    fn get_value(&self, value: i64, mode_x: &Mode) -> i64 {
+    fn get_value(&self, addr: i64, mode_x: &Mode) -> i64 {
         match mode_x {
-            Mode::Immediate => value,
-            Mode::Position => self.mem.get(value),
+            Mode::Immediate => addr,
+            Mode::Position => self.mem.get(addr),
+            Mode::Relative => self.mem.get(self.rb + addr),
         }
     }
 
@@ -239,6 +248,7 @@ impl CPU {
         match mode_x {
             Mode::Immediate => panic!("write with Mode::Immediate"),
             Mode::Position => self.mem.set(addr, value),
+            Mode::Relative => self.mem.set(self.rb + addr, value),
         }
     }
 }
@@ -260,12 +270,13 @@ fn decode(mem: [i64; 4]) -> Command {
     match opcode {
         1 => Command::Add(mem[1], mem[2], mem[3], modeset),
         2 => Command::Mul(mem[1], mem[2], mem[3], modeset),
-        3 => Command::Input(mem[1] as usize),
-        4 => Command::Output(mem[1] as usize),
+        3 => Command::Input(mem[1], modeset),
+        4 => Command::Output(mem[1], modeset),
         5 => Command::JumpTrue(mem[1], mem[2], modeset),
         6 => Command::JumpFalse(mem[1], mem[2], modeset),
         7 => Command::LessThan(mem[1], mem[2], mem[3], modeset),
         8 => Command::Equals(mem[1], mem[2], mem[3], modeset),
+        9 => Command::UpdateRelative(mem[1]),
         99 => Command::Halt,
         n => panic!("invalid opcode: {}", n),
     }
@@ -324,5 +335,15 @@ mod test {
         cpu.run();
 
         assert_eq!(1219070632396864, cpu.output[0]);
+    }
+
+    #[test]
+    fn test_relative_mode() {
+        let code = vec![
+            109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
+        ];
+        let mut cpu = CPU::new(code.clone(), vec![]);
+        cpu.run();
+        assert_eq!(code, cpu.output);
     }
 }
