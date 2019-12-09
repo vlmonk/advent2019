@@ -65,7 +65,7 @@ enum Command {
     JumpFalse(i64, i64, ModeSet),
     LessThan(i64, i64, i64, ModeSet),
     Equals(i64, i64, i64, ModeSet),
-    UpdateRelative(i64),
+    UpdateRelative(i64, ModeSet),
 }
 
 impl Command {
@@ -108,7 +108,7 @@ pub struct CPU {
     pub output: Vec<i64>,
 
     ip: usize,
-    ticks: usize,
+    pub ticks: usize,
 
     rb: i64,
 }
@@ -136,7 +136,6 @@ impl CPU {
         let original_ip = self.ip;
 
         let command = decode(self.mem.get_opcodes(self.ip));
-        dbg!(&command);
         self.process(&command);
         self.ticks += 1;
 
@@ -230,8 +229,9 @@ impl CPU {
                     self.set_value(*c, 0, &modeset.2)
                 }
             }
-            Command::UpdateRelative(a) => {
-                self.rb += a;
+            Command::UpdateRelative(value, modeset) => {
+                let value = self.get_value(*value, &modeset.0);
+                self.rb += value;
             }
         }
     }
@@ -276,7 +276,7 @@ fn decode(mem: [i64; 4]) -> Command {
         6 => Command::JumpFalse(mem[1], mem[2], modeset),
         7 => Command::LessThan(mem[1], mem[2], mem[3], modeset),
         8 => Command::Equals(mem[1], mem[2], mem[3], modeset),
-        9 => Command::UpdateRelative(mem[1]),
+        9 => Command::UpdateRelative(mem[1], modeset),
         99 => Command::Halt,
         n => panic!("invalid opcode: {}", n),
     }
