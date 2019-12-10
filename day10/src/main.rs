@@ -43,11 +43,11 @@ impl Asteroid {
             return None;
         }
 
-        let quadrant = match (dx > 0, dy >= 0) {
-            (true, true) => Quadrant::A,
-            (false, true) => Quadrant::B,
-            (false, false) => Quadrant::C,
-            (true, false) => Quadrant::D,
+        let quadrant = match (dx, dy) {
+            (dx, dy) if dx >= 0 && dy < 0 => Quadrant::A,
+            (dx, dy) if dx > 0 && dy >= 0 => Quadrant::B,
+            (dx, dy) if dx > 0 && dy <= 0 => Quadrant::C,
+            (_, _) => Quadrant::D,
         };
 
         let (dx, dy) = match quadrant {
@@ -55,7 +55,7 @@ impl Asteroid {
             _ => (dy.abs(), dx.abs()),
         };
 
-        let angel = Ratio::new(dy, dy + dx);
+        let angel = Ratio::new(dx, dy + dx);
         Some(Vector { quadrant, angel })
     }
 }
@@ -147,10 +147,10 @@ mod test {
 
     #[test]
     fn test_distance_to() {
-        assert_eq!(distance_to(1, 1, 2, 2).unwrap(), Vector::new('a', 1, 2));
-        assert_eq!(distance_to(1, 1, 5, 5).unwrap(), Vector::new('a', 1, 2));
-        assert_eq!(distance_to(3, 3, 7, 2).unwrap(), Vector::new('d', 4, 5));
-        assert_eq!(distance_to(0, 0, 0, 1).unwrap(), Vector::new('b', 0, 1));
+        assert_eq!(distance_to(0, 0, 0, -10).unwrap(), Vector::new('a', 0, 1));
+        assert_eq!(distance_to(3, 3, 4, 2).unwrap(), Vector::new('a', 1, 2));
+        assert_eq!(distance_to(3, 3, 7, 3).unwrap(), Vector::new('b', 0, 1));
+        assert_eq!(distance_to(3, 3, 0, 1).unwrap(), Vector::new('d', 2, 5));
         assert_eq!(distance_to(2, 2, 2, 2), None);
     }
 }
