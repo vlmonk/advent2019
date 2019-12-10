@@ -59,7 +59,7 @@ impl Asteroid {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Quadrant {
     A,
     B,
@@ -67,7 +67,7 @@ enum Quadrant {
     D,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Vector {
     quadrant: Quadrant,
     angel: Ratio<i32>,
@@ -77,7 +77,23 @@ fn main() -> Result<()> {
     let input = fs::read_to_string("input.txt")?;
     let field = Asteroid::parse(&input);
 
-    dbg!(field);
+    let task_a = field
+        .iter()
+        .map(|i| {
+            let mut total = field
+                .iter()
+                .filter_map(|j| i.distance_to(j))
+                .collect::<Vec<_>>();
+
+            total.sort();
+            total.dedup();
+
+            total.len()
+        })
+        .max();
+
+    dbg!(task_a);
+
     Ok(())
 }
 
