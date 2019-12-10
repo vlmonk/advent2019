@@ -1,308 +1,608 @@
-use rayon::prelude::*;
-use std::fs;
+#![feature(drain_filter)]
+
+use std::cmp::max;
+use std::error::Error;
+use std::fmt::Debug;
+use std::io::Read;
 use std::time::Instant;
 
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
-
-#[derive(Debug, PartialEq)]
-struct Asteroid {
-    x: i32,
-    y: i32,
+fn bench<T, F>(name: &str, f: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    let start = Instant::now();
+    let res = (f)();
+    let elapsed = start.elapsed();
+    println!("{}: {:?}", name, elapsed);
+    res
 }
 
-impl Asteroid {
-    pub fn new(x: i32, y: i32) -> Self {
-        Self { x, y }
-    }
+use nom::{branch::*, character::complete::*, combinator::*, multi::*, sequence::*, IResult};
 
-    pub fn parse(input: &str) -> Vec<Self> {
-        input
-            .lines()
-            .enumerate()
-            .map(|(y, line)| {
-                line.chars()
-                    .enumerate()
-                    .map(move |(x, point)| (x, y, point))
-            })
-            .flatten()
-            .filter_map(|info| {
-                let (x, y, point) = info;
-                match point {
-                    '#' => Some(Self::new(x as i32, y as i32)),
-                    _ => None,
-                }
-            })
-            .collect::<Vec<_>>()
-    }
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Object {
+    Asteriod,
+    Nothing,
+}
 
-    pub fn distance_to(&self, other: &Asteroid) -> Option<Vector> {
-        let dx = other.x - self.x;
-        let dy = other.y - self.y;
-
-        if dx == 0 && dy == 0 {
-            return None;
+impl Object {
+    fn is_asteriod(&self) -> bool {
+        if let Object::Asteriod = self {
+            true
+        } else {
+            false
         }
-
-        let quadrant = match (dx, dy) {
-            (dx, dy) if dx >= 0 && dy < 0 => Quadrant::A,
-            (dx, dy) if dx > 0 && dy >= 0 => Quadrant::B,
-            (dx, dy) if dx <= 0 && dy > 0 => Quadrant::C,
-            (_, _) => Quadrant::D,
-        };
-
-        let (dx, dy) = match quadrant {
-            Quadrant::A | Quadrant::C => (dx.abs(), dy.abs()),
-            _ => (dy.abs(), dx.abs()),
-        };
-
-        let angel = (dx * 1_000_000) / (dy * 1_000);
-        Some(Vector { quadrant, angel })
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-enum Quadrant {
-    A,
-    B,
-    C,
-    D,
+fn asteroid(input: &str) -> IResult<&str, Object> {
+    let (input, _) = char('#')(input)?;
+    Ok((input, Object::Asteriod))
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-struct Vector {
-    quadrant: Quadrant,
-    angel: i32,
+fn nothing(input: &str) -> IResult<&str, Object> {
+    let (input, _) = char('.')(input)?;
+    Ok((input, Object::Nothing))
 }
 
-struct TaskA<'a> {
-    field: &'a [Asteroid],
+fn asteroids_row(input: &str) -> IResult<&str, Vec<Object>> {
+    many1(alt((asteroid, nothing)))(input)
 }
 
-impl<'a> TaskA<'a> {
-    pub fn solve(&self) -> Option<(usize, i32, i32)> {
-        self.field
-            .par_iter()
-            .map(|i| {
-                let mut total = self
-                    .field
-                    .iter()
-                    .filter_map(|j| i.distance_to(j))
-                    .collect::<Vec<_>>();
-
-                total.sort();
-                total.dedup();
-
-                (total.len(), i.x, i.y)
-            })
-            .max_by_key(|(len, _, _)| *len)
-    }
-
-    pub fn new(field: &'a [Asteroid]) -> Self {
-        Self { field }
-    }
+fn asteroids(input: &str) -> IResult<&str, Vec<Vec<Object>>> {
+    all_consuming(many0(delimited(multispace0, asteroids_row, multispace1)))(input)
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum State {
-    Active,
-    Vaporized,
+use std::ops::{Add, Div, Mul, Rem};
+
+#[derive(Debug, Clone, Copy)]
+struct OffSet {
+    s: Sign,
+    n: usize,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct AsteroidInfo {
-    vector: Vector,
-    distance: i32,
-    state: State,
-    x: i32,
-    y: i32,
+#[derive(Debug, Clone, Copy)]
+enum Dir {
+    Up,
+    UpRight,
+    Right,
+    DownRight,
+    Down,
+    DownLeft,
+    Left,
+    UpLeft,
+    Center,
 }
 
-impl AsteroidInfo {
-    pub fn active(&self) -> bool {
-        self.state == State::Active
-    }
-
-    pub fn vaporize(&mut self) {
-        self.state = State::Vaporized;
+impl Dir {
+    fn dir((x, y): &(OffSet, OffSet)) -> Dir {
+        if x.n == 0 && y.n == 0 {
+            Dir::Center
+        } else if x.n == 0 {
+            match y.s {
+                Sign::Pos => Dir::Down,
+                Sign::Neg => Dir::Up,
+            }
+        } else if y.n == 0 {
+            match x.s {
+                Sign::Pos => Dir::Right,
+                Sign::Neg => Dir::Left,
+            }
+        } else {
+            match (x.s, y.s) {
+                (Sign::Pos, Sign::Pos) => Dir::DownRight,
+                (Sign::Neg, Sign::Neg) => Dir::UpLeft,
+                (Sign::Pos, Sign::Neg) => Dir::UpRight,
+                (Sign::Neg, Sign::Pos) => Dir::DownLeft,
+            }
+        }
     }
 }
 
-struct LaserIter {
-    field: Vec<AsteroidInfo>,
-    last_vector: Option<Vector>,
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Sign {
+    Neg,
+    Pos,
 }
 
-impl LaserIter {
-    pub fn new(input: &[Asteroid], x: i32, y: i32) -> Self {
-        let origin = Asteroid { x: x, y: y };
-        let mut field = input
-            .iter()
-            .filter_map(|a| {
-                let vector = origin.distance_to(a);
-                match vector {
-                    Some(vector) => {
-                        let distance = (origin.x - a.x).abs() + (origin.y - a.y).abs();
+impl Add for OffSet {
+    type Output = OffSet;
 
-                        Some(AsteroidInfo {
-                            vector,
-                            distance,
-                            state: State::Active,
-                            x: a.x,
-                            y: a.y,
-                        })
+    fn add(self, other: Self) -> Self::Output {
+        match (self.s, other.s) {
+            (Sign::Pos, Sign::Pos) => Self {
+                n: self.n + other.n,
+                s: Sign::Pos,
+            },
+            (Sign::Neg, Sign::Neg) => Self {
+                n: self.n + other.n,
+                s: Sign::Neg,
+            },
+            (Sign::Pos, Sign::Neg) => {
+                if other.n > self.n {
+                    Self {
+                        n: other.n - self.n,
+                        s: Sign::Neg,
                     }
-                    None => None,
+                } else {
+                    Self {
+                        n: self.n - other.n,
+                        s: Sign::Pos,
+                    }
                 }
-            })
-            .collect::<Vec<_>>();
+            }
+            (Sign::Neg, Sign::Pos) => {
+                if self.n > other.n {
+                    Self {
+                        n: self.n - other.n,
+                        s: Sign::Neg,
+                    }
+                } else {
+                    Self {
+                        n: other.n - self.n,
+                        s: Sign::Pos,
+                    }
+                }
+            }
+        }
+    }
+}
 
-        field.sort();
+impl Add<usize> for OffSet {
+    type Output = OffSet;
 
-        Self {
-            field,
-            last_vector: None,
+    fn add(self, other: usize) -> Self::Output {
+        match self.s {
+            Sign::Pos => Self {
+                n: self.n + other,
+                s: Sign::Pos,
+            },
+            Sign::Neg => {
+                if self.n > other {
+                    Self {
+                        n: self.n - other,
+                        s: Sign::Neg,
+                    }
+                } else {
+                    Self {
+                        n: other - self.n,
+                        s: Sign::Pos,
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl Mul for OffSet {
+    type Output = OffSet;
+
+    fn mul(self, other: Self) -> Self::Output {
+        match (self.s, other.s) {
+            (Sign::Pos, Sign::Pos) => Self {
+                n: self.n * other.n,
+                s: Sign::Pos,
+            },
+            (Sign::Neg, Sign::Neg) => Self {
+                n: self.n * other.n,
+                s: Sign::Pos,
+            },
+            (Sign::Pos, Sign::Neg) | (Sign::Neg, Sign::Pos) => Self {
+                n: self.n * other.n,
+                s: Sign::Neg,
+            },
+        }
+    }
+}
+
+impl Mul<usize> for OffSet {
+    type Output = OffSet;
+
+    fn mul(self, other: usize) -> Self::Output {
+        match self.s {
+            Sign::Pos => Self {
+                n: self.n * other,
+                s: Sign::Pos,
+            },
+            Sign::Neg => Self {
+                n: self.n * other,
+                s: Sign::Neg,
+            },
+        }
+    }
+}
+
+impl Div for OffSet {
+    type Output = OffSet;
+
+    fn div(self, other: Self) -> Self::Output {
+        match (self.s, other.s) {
+            (Sign::Pos, Sign::Pos) => Self {
+                n: self.n / other.n,
+                s: Sign::Pos,
+            },
+            (Sign::Neg, Sign::Neg) => Self {
+                n: self.n / other.n,
+                s: Sign::Pos,
+            },
+            (Sign::Pos, Sign::Neg) | (Sign::Neg, Sign::Pos) => Self {
+                n: self.n / other.n,
+                s: Sign::Neg,
+            },
+        }
+    }
+}
+
+impl Div<usize> for OffSet {
+    type Output = OffSet;
+
+    fn div(self, other: usize) -> Self::Output {
+        match self.s {
+            Sign::Pos => Self {
+                n: self.n / other,
+                s: Sign::Pos,
+            },
+            Sign::Neg => Self {
+                n: self.n / other,
+                s: Sign::Neg,
+            },
+        }
+    }
+}
+
+impl Rem for OffSet {
+    type Output = OffSet;
+
+    fn rem(self, other: Self) -> Self::Output {
+        match (self.s, other.s) {
+            (Sign::Pos, Sign::Pos) => Self {
+                n: self.n % other.n,
+                s: Sign::Pos,
+            },
+            (Sign::Neg, Sign::Neg) => Self {
+                n: self.n % other.n,
+                s: Sign::Pos,
+            },
+            (Sign::Pos, Sign::Neg) | (Sign::Neg, Sign::Pos) => Self {
+                n: self.n % other.n,
+                s: Sign::Neg,
+            },
+        }
+    }
+}
+
+impl OffSet {
+    fn offset(dest: usize, src: usize) -> Self {
+        if src > dest {
+            Self {
+                n: src - dest,
+                s: Sign::Neg,
+            }
+        } else {
+            Self {
+                n: dest - src,
+                s: Sign::Pos,
+            }
         }
     }
 
-    fn next_active(&self) -> Option<usize> {
-        self.field.iter().position(|i| i.active())
-    }
-
-    fn next_active_after(&self, v: &Vector) -> Option<usize> {
-        self.field.iter().position(|i| i.active() && i.vector > *v)
-    }
-
-    fn save_info(&mut self, index: usize) -> (i32, i32) {
-        self.last_vector = Some(self.field[index].vector.clone());
-        self.field[index].vaporize();
-        (self.field[index].x, self.field[index].y)
+    fn as_usize(self) -> usize {
+        match self.s {
+            Sign::Pos => self.n,
+            Sign::Neg => panic!("ahhhhhhhhh"),
+        }
     }
 }
 
-impl Iterator for LaserIter {
-    type Item = (i32, i32);
+use num::Integer;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        self.last_vector
-            .as_ref()
-            .and_then(|v| self.next_active_after(v))
-            .or(self.next_active())
-            .map(|i| self.save_info(i))
+fn calc_sight(asteroids: &[Vec<Object>], a: (usize, usize), b: (usize, usize)) -> bool {
+    if a == b {
+        true
+    } else {
+        let (xa, ya) = a;
+        let (xb, yb) = b;
+        let (xm, ym) = (OffSet::offset(xb, xa), OffSet::offset(yb, ya));
+        let gcd = if xm.n == 0 || ym.n == 0 {
+            max(xm.n, ym.n)
+        } else {
+            xm.n.gcd(&ym.n)
+        };
+        let (dx, dy) = (xm / gcd, ym / gcd);
+        (1..gcd).any(|n| {
+            let y = (dy * n + ya).as_usize();
+            let x = (dx * n + xa).as_usize();
+            asteroids[y][x].is_asteriod()
+        })
     }
 }
 
-struct TaskB {
-    iter: LaserIter,
+fn calc_one(asteroids: &[Vec<Object>]) -> Option<((usize, usize), usize)> {
+    asteroids
+        .iter()
+        .enumerate()
+        .flat_map(|(ya, row)| {
+            row.iter().enumerate().filter_map(move |(xa, object)| {
+                if object.is_asteriod() {
+                    let count = asteroids
+                        .iter()
+                        .enumerate()
+                        .flat_map(|(yb, row)| {
+                            row.iter().enumerate().filter(move |(xb, object)| {
+                                if object.is_asteriod() {
+                                    !calc_sight(&asteroids, (xa, ya), (*xb, yb))
+                                } else {
+                                    false
+                                }
+                            })
+                        })
+                        .count();
+                    Some(((xa, ya), count))
+                } else {
+                    None
+                }
+            })
+        })
+        .max_by_key(|(_, count)| *count)
 }
 
-impl TaskB {
-    pub fn new(field: &[Asteroid], x: i32, y: i32) -> Self {
-        let iter = LaserIter::new(field, x, y);
-        Self { iter }
-    }
+#[derive(Debug, Clone, Copy)]
+struct Asteriod {
+    m: (OffSet, OffSet),
+    i: (usize, usize),
+}
 
-    pub fn solve(&mut self) -> Option<(i32, i32)> {
-        self.iter.nth(199)
+use std::cmp::Ordering;
+
+impl Ord for Asteriod {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let da = Dir::dir(&self.m);
+        let db = Dir::dir(&other.m);
+        if da as u8 != db as u8 {
+            (da as u8).cmp(&(db as u8))
+        } else {
+            match da {
+                Dir::Up => self.m.1.n.cmp(&other.m.1.n),
+                Dir::Right => self.m.0.n.cmp(&other.m.0.n),
+                Dir::Down => self.m.1.n.cmp(&other.m.1.n),
+                Dir::Left => self.m.0.n.cmp(&other.m.0.n),
+                Dir::Center => Ordering::Equal,
+                _ => {
+                    let a = self.m.0 * other.m.1;
+                    let b = other.m.0 * self.m.1;
+                    a.cmp(&b).reverse()
+                }
+            }
+        }
     }
 }
 
-fn main() -> Result<()> {
-    let now = Instant::now();
+impl PartialOrd for Asteriod {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
-    let input = fs::read_to_string("input.txt")?;
-    let field = Asteroid::parse(&input);
-    let field_size = field.len();
+impl PartialEq for Asteriod {
+    fn eq(&self, other: &Self) -> bool {
+        if let Ordering::Equal = self.cmp(other) {
+            true
+        } else {
+            false
+        }
+    }
+}
 
-    let task_a = TaskA::new(&field).solve().unwrap();
-    let task_b = TaskB::new(&field, task_a.1, task_a.2).solve().unwrap();
+impl Eq for Asteriod {}
 
-    let total_time = now.elapsed();
+impl Ord for OffSet {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self.s, other.s) {
+            (Sign::Neg, Sign::Pos) => Ordering::Less,
+            (Sign::Pos, Sign::Neg) => Ordering::Greater,
+            (Sign::Neg, Sign::Neg) => self.n.cmp(&other.n).reverse(),
+            (Sign::Pos, Sign::Pos) => self.n.cmp(&other.n),
+        }
+    }
+}
 
-    println!("Total asteroids: {}", field_size);
-    println!("Task I :  {} (x: {}, y: {})", task_a.0, task_a.1, task_a.2);
-    println!(
-        "Task II:  {} (x: {}, y: {})",
-        task_b.0 * 100 + task_b.1,
-        task_b.0,
-        task_b.1
-    );
-    println!("Total time: {}μs", total_time.as_micros());
+impl PartialOrd for OffSet {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for OffSet {
+    fn eq(&self, other: &Self) -> bool {
+        self.s == other.s && self.n == other.n
+    }
+}
+
+impl Eq for OffSet {}
+
+fn calc_two(asteroids: &[Vec<Object>], (xa, ya): (usize, usize)) -> Vec<(usize, usize)> {
+    let mut asteroids = asteroids.to_vec();
+    asteroids[ya][xa] = Object::Nothing;
+    let mut to_destroy: Vec<_> = asteroids
+        .iter()
+        .enumerate()
+        .flat_map(|(yb, row)| {
+            row.iter().enumerate().filter_map(move |(xb, object)| {
+                if object.is_asteriod() {
+                    Some(Asteriod {
+                        m: (OffSet::offset(xb, xa), OffSet::offset(yb, ya)),
+                        i: (xb, yb),
+                    })
+                } else {
+                    None
+                }
+            })
+        })
+        .collect();
+    to_destroy.sort();
+
+    /*
+    let mut debug: Vec<Vec<String>> = asteroids
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|object| {
+                    if object.is_asteriod() {
+                        "###".to_string()
+                    } else {
+                        "...".to_string()
+                    }
+                })
+                .collect()
+        })
+        .collect();
+    for (i, x) in to_destroy.iter().enumerate() {
+        debug[x.i.1][x.i.0] = format!("{:03}", i);
+    }
+    for i in debug {
+        for j in i {
+            print!(" {} ", j);
+        }
+        println!("");
+    }*/
+
+    let mut result = Vec::new();
+    while to_destroy.len() > 0 {
+        let destroyed: Vec<_> = to_destroy
+            .drain_filter(|asteroid| !calc_sight(&asteroids, (xa, ya), asteroid.i))
+            .collect();
+        for i in destroyed {
+            asteroids[i.i.1][i.i.0] = Object::Nothing;
+            result.push(i.i);
+        }
+    }
+    result
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let asteroids = bench("parse_inputs", || -> Result<_, Box<dyn Error>> {
+        let mut buffer = String::new();
+        std::io::stdin().lock().read_to_string(&mut buffer)?;
+        Ok(asteroids(&buffer).unwrap().1)
+    })?;
+    let one = bench("calc_one", || calc_one(&asteroids).unwrap());
+    let two = bench("calc_two", || calc_two(&asteroids, one.0)[199]);
+    println!("Answer One: {:?}", one);
+    println!("Answer Two: {:?}", (two.0 * 100 + two.1));
     Ok(())
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
+mod tests {
+    use crate::*;
+    use std::error::Error;
+    use thiserror::Error;
 
-    impl Quadrant {
-        fn from_char(input: char) -> Self {
-            match input {
-                'a' => Self::A,
-                'b' => Self::B,
-                'c' => Self::C,
-                'd' => Self::D,
-                _ => panic!("invalid input for Quadrant::from_char"),
-            }
+    #[derive(Error, Debug)]
+    pub enum MyError {
+        #[error("Value should be equal")]
+        NotEqual(((usize, usize), usize), ((usize, usize), usize)),
+    }
+
+    #[test]
+    fn one() -> Result<(), Box<dyn Error>> {
+        let input = r#"
+            .#..#
+            .....
+            #####
+            ....#
+            ...##
+        "#;
+        test(input, ((3, 4), 8))
+    }
+
+    #[test]
+    fn two() -> Result<(), Box<dyn Error>> {
+        let input = r#"
+            ......#.#.
+            #..#.#....
+            ..#######.
+            .#.#.###..
+            .#..#.....
+            ..#....#.#
+            #..#....#.
+            .##.#..###
+            ##...#..#.
+            .#....####
+        "#;
+        test(input, ((5, 8), 33))
+    }
+
+    #[test]
+    fn three() -> Result<(), Box<dyn Error>> {
+        let input = r#"
+            #.#...#.#.
+            .###....#.
+            .#....#...
+            ##.#.#.#.#
+            ....#.#.#.
+            .##..###.#
+            ..#...##..
+            ..##....##
+            ......#...
+            .####.###.
+        "#;
+        test(input, ((1, 2), 35))
+    }
+
+    #[test]
+    fn four() -> Result<(), Box<dyn Error>> {
+        let input = r#"
+            .#..#..###
+            ####.###.#
+            ....###.#.
+            ..###.##.#
+            ##.##.#.#.
+            ....###..#
+            ..#.#..#.#
+            #..#.#.###
+            .##...##.#
+            .....#.#..
+        "#;
+        test(input, ((6, 3), 41))
+    }
+
+    #[test]
+    fn five() -> Result<(), Box<dyn Error>> {
+        let input = r#"
+            .#..##.###...#######
+            ##.############..##.
+            .#.######.########.#
+            .###.#######.####.#.
+            #####.##.#.##.###.##
+            ..#####..#.#########
+            ####################
+            #.####....###.#.#.##
+            ##.#################
+            #####.##.###..####..
+            ..######..##.#######
+            ####.##.####...##..#
+            .#####..#.######.###
+            ##...#.##########...
+            #.##########.#######
+            .####.#.###.###.#.##
+            ....##.##.###..#####
+            .#.#.###########.###
+            #.#.#.#####.####.###
+            ###.##.####.##.#..##
+        "#;
+        test(input, ((11, 13), 210))
+    }
+
+    fn test(input: &str, expect: ((usize, usize), usize)) -> Result<(), Box<dyn Error>> {
+        let asteroids = bench("parse_inputs", || -> Result<_, Box<dyn Error>> {
+            Ok(asteroids(&input).unwrap().1)
+        })?;
+        let result = calc_one(&asteroids).unwrap();
+        if result != expect {
+            Err(Box::new(MyError::NotEqual(result, expect)))
+        } else {
+            Ok(())
         }
-    }
-
-    impl Vector {
-        fn new(quadrant: char, a: i32, b: i32) -> Self {
-            let quadrant = Quadrant::from_char(quadrant);
-            Self {
-                quadrant,
-                angel: (a * 1_000_000) / (b * 1_000),
-            }
-        }
-    }
-
-    fn distance_to(a_x: i32, a_y: i32, b_x: i32, b_y: i32) -> Option<Vector> {
-        let a = Asteroid::new(a_x, a_y);
-        let b = Asteroid::new(b_x, b_y);
-
-        a.distance_to(&b)
-    }
-
-    #[test]
-    fn test_parse() {
-        let input = "..#\n#..\n";
-        let result = Asteroid::parse(input);
-        let expected = vec![Asteroid::new(2, 0), Asteroid::new(0, 1)];
-
-        assert_eq!(expected, result);
-    }
-
-    #[test]
-    fn test_distance_to() {
-        assert_eq!(distance_to(3, 3, 4, 2).unwrap(), Vector::new('a', 1, 1));
-        assert_eq!(distance_to(3, 3, 7, 3).unwrap(), Vector::new('b', 0, 1));
-        assert_eq!(distance_to(3, 3, 0, 1).unwrap(), Vector::new('d', 2, 3));
-        assert_eq!(distance_to(2, 2, 2, 2), None);
-    }
-
-    #[test]
-    fn test_distance_align() {
-        assert_eq!(distance_to(0, 0, 0, -10).unwrap(), Vector::new('a', 0, 1));
-        assert_eq!(distance_to(0, 0, 10, 0).unwrap(), Vector::new('b', 0, 1));
-        assert_eq!(distance_to(0, 0, 0, 10).unwrap(), Vector::new('c', 0, 1));
-        assert_eq!(distance_to(0, 0, -10, 0).unwrap(), Vector::new('d', 0, 1));
-    }
-
-    #[test]
-    fn test_laser_iter_empty() {
-        let mut iter = LaserIter::new(&vec![], 0, 0);
-        assert_eq!(iter.next(), None);
-        assert_eq!(iter.next(), None);
-    }
-
-    #[test]
-    fn test_laser_iter() {
-        let field = Asteroid::parse("##.\n.#.\n...\n");
-        let mut iter = LaserIter::new(&field, 1, 2);
-
-        assert_eq!(iter.next(), Some((1, 1)));
-        assert_eq!(iter.next(), Some((0, 0)));
-        assert_eq!(iter.next(), Some((1, 0)));
-        assert_eq!(iter.next(), None);
     }
 }
