@@ -74,31 +74,44 @@ struct Vector {
     angel: Ratio<i32>,
 }
 
+struct TaskA<'a> {
+    field: &'a [Asteroid],
+}
+
+impl<'a> TaskA<'a> {
+    pub fn solve(&self) -> Option<usize> {
+        self.field
+            .iter()
+            .map(|i| {
+                let mut total = self
+                    .field
+                    .iter()
+                    .filter_map(|j| i.distance_to(j))
+                    .collect::<Vec<_>>();
+
+                total.sort();
+                total.dedup();
+
+                total.len()
+            })
+            .max()
+    }
+
+    pub fn new(field: &'a [Asteroid]) -> Self {
+        Self { field }
+    }
+}
+
 fn main() -> Result<()> {
     let now = Instant::now();
     let input = fs::read_to_string("input.txt")?;
     let field = Asteroid::parse(&input);
 
     println!("Total asteroids: {}", field.len());
-
-    let task_a = field
-        .iter()
-        .map(|i| {
-            let mut total = field
-                .iter()
-                .filter_map(|j| i.distance_to(j))
-                .collect::<Vec<_>>();
-
-            total.sort();
-            total.dedup();
-
-            total.len()
-        })
-        .max();
-
+    let task_a = TaskA::new(&field).solve().unwrap();
     let total_time = now.elapsed();
 
-    println!("Task I:  {}", task_a.unwrap());
+    println!("Task I:  {}", task_a);
     println!("Total time: {}μs", total_time.as_micros());
     Ok(())
 }
