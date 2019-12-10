@@ -164,43 +164,31 @@ impl LaserIter {
             last_vector: None,
         }
     }
+
+    fn next_active(&self) -> Option<usize> {
+        self.field.iter().position(|i| i.active())
+    }
+
+    fn next_active_after(&self, v: &Vector) -> Option<usize> {
+        self.field.iter().position(|i| i.active() && i.vector > *v)
+    }
+
+    fn save_info(&mut self, index: usize) -> (i32, i32) {
+        self.last_vector = Some(self.field[index].vector.clone());
+        self.field[index].vaporize();
+        (self.field[index].x, self.field[index].y)
+    }
 }
 
 impl Iterator for LaserIter {
     type Item = (i32, i32);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(v) = self.last_vector.as_ref() {
-            let mut next_from_current = self
-                .field
-                .iter_mut()
-                .filter(|i| i.active())
-                .filter(|i| i.vector > *v);
-
-            if let Some(i) = next_from_current.next().as_mut() {
-                self.last_vector = Some(i.vector.clone());
-                i.vaporize();
-                Some((i.x, i.y))
-            } else {
-                let mut next_from_start = self.field.iter_mut().filter(|i| i.active());
-                if let Some(i) = next_from_start.next().as_mut() {
-                    self.last_vector = Some(i.vector.clone());
-                    i.vaporize();
-                    Some((i.x, i.y))
-                } else {
-                    None
-                }
-            }
-        } else {
-            match self.field.iter_mut().next().as_mut() {
-                Some(i) => {
-                    self.last_vector = Some(i.vector.clone());
-                    i.vaporize();
-                    Some((i.x, i.y))
-                }
-                None => None,
-            }
-        }
+        self.last_vector
+            .as_ref()
+            .and_then(|v| self.next_active_after(v))
+            .or(self.next_active())
+            .map(|i| self.save_info(i))
     }
 }
 
