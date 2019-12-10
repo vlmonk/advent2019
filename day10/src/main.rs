@@ -1,4 +1,3 @@
-use num_rational::Ratio;
 use rayon::prelude::*;
 use std::fs;
 use std::time::Instant;
@@ -56,7 +55,7 @@ impl Asteroid {
             _ => (dy.abs(), dx.abs()),
         };
 
-        let angel = Ratio::new(dx, dy + dx);
+        let angel = (dx * 1_000_000) / (dy * 1_000);
         Some(Vector { quadrant, angel })
     }
 }
@@ -72,7 +71,7 @@ enum Quadrant {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 struct Vector {
     quadrant: Quadrant,
-    angel: Ratio<i32>,
+    angel: i32,
 }
 
 struct TaskA<'a> {
@@ -252,7 +251,7 @@ mod test {
             let quadrant = Quadrant::from_char(quadrant);
             Self {
                 quadrant,
-                angel: Ratio::new(a, b),
+                angel: (a * 1_000_000) / (b * 1_000),
             }
         }
     }
@@ -275,9 +274,9 @@ mod test {
 
     #[test]
     fn test_distance_to() {
-        assert_eq!(distance_to(3, 3, 4, 2).unwrap(), Vector::new('a', 1, 2));
+        assert_eq!(distance_to(3, 3, 4, 2).unwrap(), Vector::new('a', 1, 1));
         assert_eq!(distance_to(3, 3, 7, 3).unwrap(), Vector::new('b', 0, 1));
-        assert_eq!(distance_to(3, 3, 0, 1).unwrap(), Vector::new('d', 2, 5));
+        assert_eq!(distance_to(3, 3, 0, 1).unwrap(), Vector::new('d', 2, 3));
         assert_eq!(distance_to(2, 2, 2, 2), None);
     }
 
