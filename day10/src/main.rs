@@ -1,5 +1,6 @@
 use num_rational::Ratio;
 use std::fs;
+use std::time::Instant;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -38,7 +39,7 @@ impl Asteroid {
         let dx = other.x - self.x;
         let dy = other.y - self.y;
 
-        if (dx == 0 && dy == 0) {
+        if dx == 0 && dy == 0 {
             return None;
         }
 
@@ -74,8 +75,11 @@ struct Vector {
 }
 
 fn main() -> Result<()> {
+    let now = Instant::now();
     let input = fs::read_to_string("input.txt")?;
     let field = Asteroid::parse(&input);
+
+    println!("Total asteroids: {}", field.len());
 
     let task_a = field
         .iter()
@@ -92,8 +96,10 @@ fn main() -> Result<()> {
         })
         .max();
 
-    dbg!(task_a);
+    let total_time = now.elapsed();
 
+    println!("Task I:  {}", task_a.unwrap());
+    println!("Total time: {}μs", total_time.as_micros());
     Ok(())
 }
 
