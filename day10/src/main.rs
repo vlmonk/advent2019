@@ -60,7 +60,7 @@ impl Asteroid {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 enum Quadrant {
     A,
     B,
@@ -68,7 +68,7 @@ enum Quadrant {
     D,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 struct Vector {
     quadrant: Quadrant,
     angel: Ratio<i32>,
@@ -102,16 +102,142 @@ impl<'a> TaskA<'a> {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum State {
+    Active,
+    Vaporized,
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct AsteroidInfo {
+    vector: Vector,
+    distance: i32,
+    state: State,
+    x: i32,
+    y: i32,
+}
+
+impl AsteroidInfo {
+    pub fn active(&self) -> bool {
+        self.state == State::Active
+    }
+
+    pub fn vaporize(&mut self) {
+        self.state = State::Vaporized;
+    }
+}
+
+struct LaserIter {
+    field: Vec<AsteroidInfo>,
+    last_vector: Option<Vector>,
+}
+
+impl LaserIter {
+    pub fn new(input: &[Asteroid], x: i32, y: i32) -> Self {
+        let origin = Asteroid { x: x, y: y };
+        let mut field = input
+            .iter()
+            .filter_map(|a| {
+                let vector = origin.distance_to(a);
+                match vector {
+                    Some(vector) => {
+                        let distance = (origin.x - a.x).abs() + (origin.y - a.y).abs();
+
+                        Some(AsteroidInfo {
+                            vector,
+                            distance,
+                            state: State::Active,
+                            x: a.x,
+                            y: a.y,
+                        })
+                    }
+                    None => None,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        field.sort();
+
+        Self {
+            field,
+            last_vector: None,
+        }
+    }
+}
+
+impl Iterator for LaserIter {
+    type Item = (i32, i32);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(v) = self.last_vector.as_ref() {
+            let mut next_from_current = self
+                .field
+                .iter_mut()
+                .filter(|i| i.active())
+                .filter(|i| i.vector > *v);
+
+            if let Some(i) = next_from_current.next().as_mut() {
+                self.last_vector = Some(i.vector.clone());
+                i.vaporize();
+                Some((i.x, i.y))
+            } else {
+                let mut next_from_start = self.field.iter_mut().filter(|i| i.active());
+                if let Some(i) = next_from_start.next().as_mut() {
+                    self.last_vector = Some(i.vector.clone());
+                    i.vaporize();
+                    Some((i.x, i.y))
+                } else {
+                    None
+                }
+            }
+        } else {
+            match self.field.iter_mut().next().as_mut() {
+                Some(i) => {
+                    self.last_vector = Some(i.vector.clone());
+                    i.vaporize();
+                    Some((i.x, i.y))
+                }
+                None => None,
+            }
+        }
+    }
+}
+
+struct TaskB {
+    iter: LaserIter,
+}
+
+impl TaskB {
+    pub fn new(field: &[Asteroid], x: i32, y: i32) -> Self {
+        let iter = LaserIter::new(field, x, y);
+        Self { iter }
+    }
+
+    pub fn solve(&mut self) -> Option<(i32, i32)> {
+        self.iter.nth(199)
+    }
+}
+
 fn main() -> Result<()> {
     let now = Instant::now();
+
     let input = fs::read_to_string("input.txt")?;
     let field = Asteroid::parse(&input);
+    let field_size = field.len();
 
-    println!("Total asteroids: {}", field.len());
     let task_a = TaskA::new(&field).solve().unwrap();
+    let task_b = TaskB::new(&field, task_a.1, task_a.2).solve().unwrap();
+
     let total_time = now.elapsed();
 
-    println!("Task I:  {} (x: {}, y: {})", task_a.0, task_a.1, task_a.2);
+    println!("Total asteroids: {}", field_size);
+    println!("Task I :  {} (x: {}, y: {})", task_a.0, task_a.1, task_a.2);
+    println!(
+        "Task II:  {} (x: {}, y: {})",
+        task_b.0 * 100 + task_b.1,
+        task_b.0,
+        task_b.1
+    );
     println!("Total time: {}μs", total_time.as_micros());
     Ok(())
 }
@@ -172,5 +298,23 @@ mod test {
         assert_eq!(distance_to(0, 0, 10, 0).unwrap(), Vector::new('b', 0, 1));
         assert_eq!(distance_to(0, 0, 0, 10).unwrap(), Vector::new('c', 0, 1));
         assert_eq!(distance_to(0, 0, -10, 0).unwrap(), Vector::new('d', 0, 1));
+    }
+
+    #[test]
+    fn test_laser_iter_empty() {
+        let mut iter = LaserIter::new(&vec![], 0, 0);
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn test_laser_iter() {
+        let field = Asteroid::parse("##.\n.#.\n...\n");
+        let mut iter = LaserIter::new(&field, 1, 2);
+
+        assert_eq!(iter.next(), Some((1, 1)));
+        assert_eq!(iter.next(), Some((0, 0)));
+        assert_eq!(iter.next(), Some((1, 0)));
+        assert_eq!(iter.next(), None);
     }
 }
