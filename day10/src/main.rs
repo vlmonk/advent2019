@@ -1,4 +1,5 @@
 use num_rational::Ratio;
+use rayon::prelude::*;
 use std::fs;
 use std::time::Instant;
 
@@ -81,7 +82,7 @@ struct TaskA<'a> {
 impl<'a> TaskA<'a> {
     pub fn solve(&self) -> Option<(usize, i32, i32)> {
         self.field
-            .iter()
+            .par_iter()
             .map(|i| {
                 let mut total = self
                     .field
