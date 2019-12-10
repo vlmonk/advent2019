@@ -79,7 +79,7 @@ struct TaskA<'a> {
 }
 
 impl<'a> TaskA<'a> {
-    pub fn solve(&self) -> Option<usize> {
+    pub fn solve(&self) -> Option<(usize, i32, i32)> {
         self.field
             .iter()
             .map(|i| {
@@ -92,9 +92,9 @@ impl<'a> TaskA<'a> {
                 total.sort();
                 total.dedup();
 
-                total.len()
+                (total.len(), i.x, i.y)
             })
-            .max()
+            .max_by_key(|(len, _, _)| *len)
     }
 
     pub fn new(field: &'a [Asteroid]) -> Self {
@@ -111,7 +111,7 @@ fn main() -> Result<()> {
     let task_a = TaskA::new(&field).solve().unwrap();
     let total_time = now.elapsed();
 
-    println!("Task I:  {}", task_a);
+    println!("Task I:  {} (x: {}, y: {})", task_a.0, task_a.1, task_a.2);
     println!("Total time: {}μs", total_time.as_micros());
     Ok(())
 }
