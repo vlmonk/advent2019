@@ -46,7 +46,7 @@ impl Asteroid {
         let quadrant = match (dx, dy) {
             (dx, dy) if dx >= 0 && dy < 0 => Quadrant::A,
             (dx, dy) if dx > 0 && dy >= 0 => Quadrant::B,
-            (dx, dy) if dx > 0 && dy <= 0 => Quadrant::C,
+            (dx, dy) if dx <= 0 && dy > 0 => Quadrant::C,
             (_, _) => Quadrant::D,
         };
 
@@ -147,10 +147,17 @@ mod test {
 
     #[test]
     fn test_distance_to() {
-        assert_eq!(distance_to(0, 0, 0, -10).unwrap(), Vector::new('a', 0, 1));
         assert_eq!(distance_to(3, 3, 4, 2).unwrap(), Vector::new('a', 1, 2));
         assert_eq!(distance_to(3, 3, 7, 3).unwrap(), Vector::new('b', 0, 1));
         assert_eq!(distance_to(3, 3, 0, 1).unwrap(), Vector::new('d', 2, 5));
         assert_eq!(distance_to(2, 2, 2, 2), None);
+    }
+
+    #[test]
+    fn test_distance_align() {
+        assert_eq!(distance_to(0, 0, 0, -10).unwrap(), Vector::new('a', 0, 1));
+        assert_eq!(distance_to(0, 0, 10, 0).unwrap(), Vector::new('b', 0, 1));
+        assert_eq!(distance_to(0, 0, 0, 10).unwrap(), Vector::new('c', 0, 1));
+        assert_eq!(distance_to(0, 0, -10, 0).unwrap(), Vector::new('d', 0, 1));
     }
 }
