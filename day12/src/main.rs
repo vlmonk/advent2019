@@ -3,6 +3,7 @@ use regex::Regex;
 use std::fmt;
 use std::fs;
 use std::ops::Add;
+use num::Integer;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -139,6 +140,26 @@ impl System {
     fn energy(&self) -> i32 {
         self.moons.iter().map(|m| m.energy()).sum()
     }
+
+    fn ax(&self) -> Vec<AxisMoon> {
+        self.moons
+            .iter()
+            .map(|moon| AxisMoon::new(moon.px, moon.vx))
+            .collect()
+    }
+
+    fn ay(&self) -> Vec<AxisMoon> {
+        self.moons
+            .iter()
+            .map(|moon| AxisMoon::new(moon.py, moon.vy))
+            .collect()
+    }
+    fn az(&self) -> Vec<AxisMoon> {
+        self.moons
+            .iter()
+            .map(|moon| AxisMoon::new(moon.pz, moon.vz))
+            .collect()
+    }
 }
 
 impl fmt::Display for System {
@@ -150,15 +171,110 @@ impl fmt::Display for System {
         Ok(())
     }
 }
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+struct AxisMoon {
+    p: i32,
+    v: i32,
+}
+
+impl AxisMoon {
+    pub fn new(p: i32, v: i32) -> Self {
+        Self { p, v }
+    }
+}
+
+impl fmt::Display for AxisMoon {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        write!(fmt, "<pos={:3}, vel={:3}>", self.p, self.v)
+    }
+}
+
+struct AxisSolver {
+    system: Vec<AxisMoon>,
+}
+
+impl AxisSolver {
+    fn new(system: Vec<AxisMoon>) -> Self {
+        Self { system }
+    }
+
+    fn solve(&mut self) -> usize {
+        let mut i = 0;
+        let keep = self.system.clone();
+
+        for i in &self.system {
+            print!("{} ", i)
+        }
+
+        println!("");
+
+        loop {
+            i += 1;
+            self.step();
+
+            if self.system == keep {
+                println!("Found on step {}", i);
+                return i;
+            }
+        }
+    }
+
+    fn step(&mut self) {
+        let add: Vec<i32> = self
+            .system
+            .iter()
+            .map(|i| self.system.iter().map(|j| (j.p - i.p).signum()).sum())
+            .collect();
+
+        for (a, b) in self.system.iter_mut().zip(add.iter()) {
+            a.v += b
+        }
+
+        for moon in self.system.iter_mut() {
+            moon.p += moon.v
+        }
+    }
+}
+
+struct LoopSolver {
+    ax: AxisSolver,
+    ay: AxisSolver,
+    az: AxisSolver,
+}
+
+impl LoopSolver {
+    pub fn new(system: &System) -> Self {
+        Self {
+            ax: AxisSolver::new(system.ax()),
+            ay: AxisSolver::new(system.ay()),
+            az: AxisSolver::new(system.az()),
+        }
+    }
+
+    pub fn solve(&mut self) -> usize {
+        let x = self.ax.solve();
+        let y = self.ay.solve();
+        let z = self.az.solve();
+
+        dbg!(x, y, z);
+        x.lcm(&y).lcm(&z)
+    }
+}
 
 fn main() -> Result<()> {
     let raw = fs::read_to_string("input.txt")?;
+
     let mut system = System::parse(&raw)?;
     for _ in 0..1000 {
         system.step();
     }
+    let task_a = system.energy();
 
-    println!("Task I: {}", system.energy());
+    let system = System::parse(&raw)?;
+    let task_b = LoopSolver::new(&system).solve();
+
+    println!("Task I: {}", task_a);
+    println!("Task I: {}", task_b);
     Ok(())
 }
 
@@ -177,5 +293,29 @@ mod test {
             Moon::parse("<x=-100, y=99, z=2>\n").unwrap(),
             Moon::new(-100, 99, 2, 0, 0, 0)
         );
+    }
+
+    #[test]
+    fn test_loop_sover() {
+        let input = r#"<x=-1, y=0, z=2>
+            <x=2, y=-10, z=-7>
+            <x=4, y=-8, z=8>
+            <x=3, y=5, z=-1>"#;
+
+        let system = System::parse(input).unwrap();
+        let result = LoopSolver::new(&system).solve();
+        assert_eq!(2772, result);
+    }
+
+    #[test]
+    fn test_loop_sover2() {
+        let input = r#"<x=-8, y=-10, z=0>
+            <x=5, y=5, z=10>
+            <x=2, y=-7, z=3>
+            <x=9, y=-8, z=-3>"#;
+
+        let system = System::parse(input).unwrap();
+        let result = LoopSolver::new(&system).solve();
+        assert_eq!(4686774924, result);
     }
 }
