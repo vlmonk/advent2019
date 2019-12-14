@@ -1,9 +1,9 @@
 use lazy_static::lazy_static;
+use num::Integer;
 use regex::Regex;
 use std::fmt;
 use std::fs;
 use std::ops::Add;
-use num::Integer;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
