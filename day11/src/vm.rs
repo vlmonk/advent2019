@@ -58,7 +58,6 @@ impl Mem {
     }
 }
 
-#[derive(Debug)]
 enum Command {
     Halt,
     Input(i64, ModeSet),
@@ -165,17 +164,6 @@ impl<'a> CPU<'a> {
         }
     }
 
-    // #[allow(dead_code)]
-    // pub fn run_part(&mut self) -> Option<i64> {
-    //     loop {
-    //         match self.tick() {
-    //             State::Halted => return None,
-    //             State::Output => return self.output.pop(),
-    //             _ => {}
-    //         }
-    //     }
-    // }
-
     fn process(&mut self, command: &Command) {
         match command {
             Command::Halt => {}
@@ -188,11 +176,10 @@ impl<'a> CPU<'a> {
             }
             Command::Output(addr, modeset) => {
                 let value = self.get_value(*addr as i64, &modeset.0);
-                dbg!(value);
 
                 match &mut self.output {
                     Some(x) => (x)(value),
-                    None => panic!("input not provided!"),
+                    None => panic!("output not provided!"),
                 };
             }
             Command::Add(a, b, c, modeset) => {
