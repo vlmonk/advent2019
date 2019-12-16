@@ -342,7 +342,6 @@ mod test {
     fn test_write_to_output() {
         let mut output = vec![];
         let mut cpu = CPU::new(vec![4, 2, 99]);
-        cpu.input(|| output.pop().unwrap());
         cpu.output(|value| {
             output.push(value);
         });
@@ -352,38 +351,45 @@ mod test {
         assert_eq!(vec![99], output);
     }
 
-    // #[test]
-    // fn test_decode_opcode() {
-    //     let (opcode, modeset) = decode_opcode(10102);
-    //     assert_eq!(2, opcode);
-    //     assert_eq!((Mode::Immediate, Mode::Position, Mode::Immediate), modeset);
-    // }
+    #[test]
+    fn test_decode_opcode() {
+        let (opcode, modeset) = decode_opcode(10102);
+        assert_eq!(2, opcode);
+        assert_eq!((Mode::Immediate, Mode::Position, Mode::Immediate), modeset);
+    }
 
-    // #[test]
-    // fn test_add() {
-    //     let programm = vec![1101, 11, 22, 0, 101, -30, 0, 1, 99];
-    //     let mut cpu = CPU::new(programm, vec![]);
-    //     cpu.run();
+    #[test]
+    fn test_add() {
+        let programm = vec![1101, 11, 22, 0, 101, -30, 0, 1, 99];
+        let mut cpu = CPU::new(programm);
+        cpu.run();
 
-    //     assert_eq!(3, cpu.mem.get(1));
-    // }
+        assert_eq!(3, cpu.mem.get(1));
+    }
 
-    // #[test]
-    // fn test_big_num() {
-    //     let programm = "1102,34915192,34915192,7,4,7,99,0";
-    //     let mut cpu = CPU::new_from_str(programm, vec![]);
-    //     cpu.run();
+    #[test]
+    fn test_big_num() {
+        let mut output = vec![];
+        let programm = "1102,34915192,34915192,7,4,7,99,0";
+        let mut cpu = CPU::new_from_str(programm);
+        cpu.output(|value| output.push(value));
+        cpu.run();
+        drop(cpu);
 
-    //     assert_eq!(1219070632396864, cpu.output[0]);
-    // }
+        assert_eq!(1219070632396864, output[0]);
+    }
 
-    // #[test]
-    // fn test_relative_mode() {
-    //     let code = vec![
-    //         109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
-    //     ];
-    //     let mut cpu = CPU::new(code.clone(), vec![]);
-    //     cpu.run();
-    //     assert_eq!(code, cpu.output);
-    // }
+    #[test]
+    fn test_relative_mode() {
+        let code = vec![
+            109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
+        ];
+        let mut output = vec![];
+        let mut cpu = CPU::new(code.clone());
+        cpu.output(|v| output.push(v));
+        cpu.run();
+        drop(cpu);
+
+        assert_eq!(code, output);
+    }
 }
