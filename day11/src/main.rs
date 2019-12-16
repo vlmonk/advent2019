@@ -24,6 +24,15 @@ impl From<i64> for Color {
     }
 }
 
+impl fmt::Display for Color {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Black => write!(f, " "),
+            Self::White => write!(f, "█"),
+        }
+    }
+}
+
 enum Direction {
     Up,
     Right,
@@ -119,13 +128,15 @@ struct Game {
 }
 
 impl Game {
-    pub fn new(programm: &str) -> Self {
-        let state = GameState {
+    pub fn new(programm: &str, color: Color) -> Self {
+        let mut state = GameState {
             field: HashMap::new(),
             position: Coord(0, 0),
             current_output: None,
             direction: Direction::Up,
         };
+
+        state.paint(color);
 
         Self {
             state: RefCell::new(state),
@@ -142,6 +153,10 @@ impl Game {
 
     pub fn total_painted(&self) -> usize {
         self.state.borrow().field.len()
+    }
+
+    pub fn field(self) -> Field {
+        Field(self.state.into_inner().field)
     }
 
     fn handle_input(&self) -> i64 {
@@ -170,14 +185,51 @@ impl fmt::Display for Game {
     }
 }
 
+struct Field(HashMap<Coord, Color>);
+
+impl Field {
+    fn x(&self) -> impl Iterator<Item = i32> {
+        let x_min = self.0.keys().map(|k| k.0).min().unwrap_or(0);
+        let x_max = self.0.keys().map(|k| k.0).max().unwrap_or(0);
+
+        (x_min..=x_max)
+    }
+    fn y(&self) -> impl Iterator<Item = i32> {
+        let y_min = self.0.keys().map(|k| k.1).min().unwrap_or(0);
+        let y_max = self.0.keys().map(|k| k.1).max().unwrap_or(0);
+
+        (y_min..=y_max).rev()
+    }
+}
+
+impl fmt::Display for Field {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for y in self.y() {
+            for x in self.x() {
+                let color = self.0.get(&Coord(x, y)).unwrap_or(&Color::Black);
+                write!(f, "{}", color)?;
+            }
+
+            write!(f, "\n")?;
+        }
+
+        Ok(())
+    }
+}
+
 fn main() -> Result<()> {
     let input = fs::read_to_string("input.txt")?;
 
-    let mut game = Game::new(&input);
-    game.run();
+    let mut game_a = Game::new(&input, Color::Black);
+    game_a.run();
+    let task_a = game_a.total_painted();
 
-    let task_a = game.total_painted();
-    println!("Task I: {}", task_a);
+    let mut game_b = Game::new(&input, Color::White);
+    game_b.run();
+    let task_b = game_b.field();
+
+    println!("Task I:  {}", task_a);
+    println!("Task II:\n{}", task_b);
 
     Ok(())
 }
