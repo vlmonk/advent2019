@@ -2,6 +2,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::HashMap;
 use std::fs;
+use std::time::Instant;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -168,11 +169,16 @@ impl Lab {
 }
 
 fn main() -> Result<()> {
+    let now = Instant::now();
+
     let input = fs::read_to_string("input.txt")?;
     let mut lab = Lab::parse(&input)?;
     let task_a = lab.calculate(1);
 
+    let total_time = now.elapsed();
+
     println!("Task I:  {}", task_a);
+    println!("Total time: {}μs", total_time.as_micros());
 
     Ok(())
 }
