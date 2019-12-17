@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::fmt;
 use std::fs;
+use std::time::Instant;
 
 #[derive(PartialEq, Debug, Clone)]
 struct Code {
@@ -84,20 +85,25 @@ fn run(mut input: Code, a: i64, b: i64) -> i64 {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let now = Instant::now();
+
     let input = fs::read_to_string("input.txt")?;
     let code = Code::parse(&input)?;
 
     let r01 = run(code.clone(), 12, 2);
-    println!("Q1: {}", r01);
 
     let r02 = (0..100)
         .flat_map(|a| (0..100).map(move |b| (a, b)))
         .find(|(a, b)| run(code.clone(), *a, *b) == 19690720);
 
+    let total_time = now.elapsed();
+
+    println!("Q1: {}", r01);
     match r02 {
         Some((a, b)) => println!("Q2: {}", a * 100 + b),
         None => println!("Q2: not found"),
     }
+    println!("Total time: {}μs", total_time.as_micros());
 
     Ok(())
 }
