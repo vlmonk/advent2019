@@ -45,28 +45,27 @@ impl Coord {
 
 struct Game {
     field: Field,
+    cpu: CPU,
 }
 
 impl Game {
     pub fn new(input: &str) -> Self {
+        let cpu = CPU::new_from_str(input);
+        let field = Field::new();
+
+        Self { field, cpu }
+    }
+
+    pub fn block_num(&mut self) -> usize {
         let mut output = vec![];
         let io = IO::output(|value| output.push(value));
-
-        let mut cpu = CPU::new_from_str(input);
-        cpu.run(io);
-
-        let mut field = Field::new();
+        self.cpu.run(io);
 
         for chunk in output.chunks(3) {
             let coord = Coord::new(chunk[0], chunk[1]);
             let tile = Tile::from_i64(chunk[2]);
-            field.insert(coord, tile);
+            self.field.insert(coord, tile);
         }
-
-        Self { field }
-    }
-
-    pub fn block_num(&mut self) -> usize {
         self.field.block_num()
     }
 }
