@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::time::Instant;
 
+const TASK_2_TARGE: usize = 1000000000000;
+
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 #[derive(Debug, PartialEq)]
@@ -168,6 +170,59 @@ impl Lab {
     }
 }
 
+#[derive(Debug)]
+enum Foo {
+    TooSmall,
+    TooBig,
+    Equal,
+}
+
+struct Reverse {
+    input: String,
+}
+
+impl Reverse {
+    pub fn build(input: &str) -> Self {
+        Self {
+            input: input.into(),
+        }
+    }
+
+    pub fn calculate(&self, target: usize) -> usize {
+        let mut t0 = 1;
+        let mut t1 = 1000;
+
+        loop {
+            let result = self.test(t1, target);
+            match result {
+                Foo::Equal => return t1,
+                Foo::TooSmall => {
+                    t0 = t1;
+                    t1 = t1 * 2;
+                }
+                Foo::TooBig => {
+                    let diff = ((t1 as f64 - t0 as f64) / 2.0).ceil() as usize;
+                    t1 = t1 - diff;
+                }
+            }
+        }
+    }
+
+    fn test(&self, value: usize, target: usize) -> Foo {
+        let mut lab = Lab::parse(&self.input).unwrap();
+        let result_1 = lab.calculate(value);
+
+        let mut lab = Lab::parse(&self.input).unwrap();
+        let result_2 = lab.calculate(value + 1);
+
+        match (result_1, result_2) {
+            (i, j) if i <= target && j > target => Foo::Equal,
+            (i, j) if i > target && j > target => Foo::TooBig,
+            _ => Foo::TooSmall,
+        }
+    }
+}
+
 fn main() -> Result<()> {
     let now = Instant::now();
 
@@ -175,9 +230,13 @@ fn main() -> Result<()> {
     let mut lab = Lab::parse(&input)?;
     let task_a = lab.calculate(1);
 
+    let r = Reverse::build(&input);
+    let x = r.calculate(TASK_2_TARGE);
+
     let total_time = now.elapsed();
 
     println!("Task I:  {}", task_a);
+    println!("Task I:  {}", x);
     println!("Total time: {}μs", total_time.as_micros());
 
     Ok(())
@@ -299,5 +358,16 @@ mod test {
         let mut lab = Lab::parse(example_2210736()).unwrap();
         let result = lab.calculate(1);
         assert_eq!(2210736, result);
+    }
+
+    #[test]
+    fn test_reverse_13312() {
+        let reverse = Reverse::build(example_13312());
+        assert_eq!(82892753, reverse.calculate(TASK_2_TARGE));
+    }
+    #[test]
+    fn test_reverse_2210736() {
+        let reverse = Reverse::build(example_2210736());
+        assert_eq!(460664, reverse.calculate(TASK_2_TARGE));
     }
 }
