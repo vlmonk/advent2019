@@ -1,4 +1,4 @@
-use crate::vm::CPU;
+use crate::vm::{CPU, IO};
 use std::collections::HashMap;
 use std::fs;
 use std::hash::Hash;
@@ -50,12 +50,10 @@ struct Game {
 impl Game {
     pub fn new(input: &str) -> Self {
         let mut output = vec![];
-        let output_fn = |value| output.push(value);
+        let io = IO::output(|value| output.push(value));
 
         let mut cpu = CPU::new_from_str(input);
-        cpu.output(output_fn);
-        cpu.run();
-        drop(cpu);
+        cpu.run(io);
 
         let mut field = Field::new();
 

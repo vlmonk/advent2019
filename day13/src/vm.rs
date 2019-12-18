@@ -105,21 +105,55 @@ fn parse_programm(input: &str) -> Vec<i64> {
         .collect::<Vec<_>>()
 }
 
+pub struct IO<'a> {
+    input: Box<dyn FnMut() -> i64 + 'a>,
+    output: Box<dyn FnMut(i64) + 'a>,
+}
+
+impl<'a> IO<'a> {
+    pub fn fail() -> Self {
+        let input = || panic!("running without input");
+        let output = |_| panic!("running without output");
+
+        Self {
+            input: Box::new(input),
+            output: Box::new(output),
+        }
+    }
+
+    pub fn input(input: impl FnMut() -> i64 + 'a) -> Self {
+        let output = |_| panic!("running without output");
+
+        Self {
+            input: Box::new(input),
+            output: Box::new(output),
+        }
+    }
+    pub fn output(output: impl FnMut(i64) + 'a) -> Self {
+        let input = || panic!("running without input");
+
+        Self {
+            input: Box::new(input),
+            output: Box::new(output),
+        }
+    }
+}
+
 pub struct CPUInfo {
     pub ticks: usize,
     pub addr: usize,
 }
 
-pub struct CPU<'a> {
+pub struct CPU {
     mem: Mem,
     ip: usize,
     ticks: usize,
     rb: i64,
-    input: Option<Box<dyn FnMut() -> i64 + 'a>>,
-    output: Option<Box<dyn FnMut(i64) + 'a>>,
+    // input: Option<Box<dyn FnMut() -> i64 + 'a>>,
+    // output: Option<Box<dyn FnMut(i64) + 'a>>,
 }
 
-impl<'a> CPU<'a> {
+impl CPU {
     fn new(programm: Vec<i64>) -> Self {
         let mem = Mem::setup(programm);
 
@@ -128,8 +162,8 @@ impl<'a> CPU<'a> {
             ip: 0,
             ticks: 0,
             rb: 0,
-            input: None,
-            output: None,
+            // input: None,
+            // output: None,
         }
     }
 
@@ -138,11 +172,11 @@ impl<'a> CPU<'a> {
         Self::new(programm)
     }
 
-    fn tick(&mut self) -> State {
+    fn tick(&mut self, io: &mut IO) -> State {
         let original_ip = self.ip;
 
         let command = decode(self.mem.get_opcodes(self.ip));
-        self.process(&command);
+        self.process(&command, io);
         self.ticks += 1;
 
         if self.ip == original_ip {
@@ -156,31 +190,36 @@ impl<'a> CPU<'a> {
         }
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self, mut io: IO) {
         loop {
-            if self.tick() == State::Halted {
+            if self.tick(&mut io) == State::Halted {
                 break;
             }
         }
     }
 
-    fn process(&mut self, command: &Command) {
+    pub fn run_without_io(&mut self) {
+        let mut io = IO::fail();
+
+        loop {
+            if self.tick(&mut io) == State::Halted {
+                break;
+            }
+        }
+    }
+
+    fn process(&mut self, command: &Command, io: &mut IO) {
         match command {
             Command::Halt => {}
             Command::Input(addr, modeset) => {
-                let value = match &mut self.input {
-                    Some(x) => (x)(),
-                    None => panic!("input not provided!"),
-                };
+                let input = &mut io.input;
+                let value = input();
                 self.set_value(*addr, value, &modeset.0)
             }
             Command::Output(addr, modeset) => {
                 let value = self.get_value(*addr as i64, &modeset.0);
-
-                match &mut self.output {
-                    Some(x) => (x)(value),
-                    None => panic!("output not provided!"),
-                };
+                let output = &mut io.output;
+                output(value);
             }
             Command::Add(a, b, c, modeset) => {
                 let a = self.get_value(*a, &modeset.0);
@@ -251,20 +290,6 @@ impl<'a> CPU<'a> {
         }
     }
 
-    pub fn input<F>(&mut self, f: F)
-    where
-        F: FnMut() -> i64 + 'a,
-    {
-        self.input = Some(Box::new(f))
-    }
-
-    pub fn output<F>(&mut self, f: F)
-    where
-        F: FnMut(i64) + 'a,
-    {
-        self.output = Some(Box::new(f))
-    }
-
     pub fn info(&self) -> CPUInfo {
         CPUInfo {
             ticks: self.ticks,
@@ -308,8 +333,9 @@ mod test {
 
     #[test]
     fn test_halt() {
+        let mut io = IO::fail();
         let mut cpu = CPU::new(vec![99]);
-        let state = cpu.tick();
+        let state = cpu.tick(&mut io);
 
         assert_eq!(state, State::Halted);
         assert_eq!(cpu.ip, 1);
@@ -318,8 +344,8 @@ mod test {
     #[test]
     fn test_write_to_memory() {
         let mut cpu = CPU::new(vec![3, 2, 1]);
-        cpu.input(|| 42);
-        let state = cpu.tick();
+        let mut io = IO::input(|| 42);
+        let state = cpu.tick(&mut io);
 
         assert_eq!(state, State::Running);
         assert_eq!(42, cpu.mem.get(2));
@@ -328,11 +354,9 @@ mod test {
     #[test]
     fn test_write_to_output() {
         let mut output = vec![];
+        let io = IO::output(|value| output.push(value));
         let mut cpu = CPU::new(vec![4, 2, 99]);
-        cpu.output(|value| {
-            output.push(value);
-        });
-        cpu.run();
+        cpu.run(io);
         core::mem::drop(cpu);
 
         assert_eq!(vec![99], output);
@@ -349,7 +373,7 @@ mod test {
     fn test_add() {
         let programm = vec![1101, 11, 22, 0, 101, -30, 0, 1, 99];
         let mut cpu = CPU::new(programm);
-        cpu.run();
+        cpu.run_without_io();
 
         assert_eq!(3, cpu.mem.get(1));
     }
@@ -359,9 +383,8 @@ mod test {
         let mut output = vec![];
         let programm = "1102,34915192,34915192,7,4,7,99,0";
         let mut cpu = CPU::new_from_str(programm);
-        cpu.output(|value| output.push(value));
-        cpu.run();
-        drop(cpu);
+        let io = IO::output(|v| output.push(v));
+        cpu.run(io);
 
         assert_eq!(1219070632396864, output[0]);
     }
@@ -372,10 +395,9 @@ mod test {
             109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
         ];
         let mut output = vec![];
+        let io = IO::output(|v| output.push(v));
         let mut cpu = CPU::new(code.clone());
-        cpu.output(|v| output.push(v));
-        cpu.run();
-        drop(cpu);
+        cpu.run(io);
 
         assert_eq!(code, output);
     }
