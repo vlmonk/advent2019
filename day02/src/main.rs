@@ -64,14 +64,14 @@ fn step(input: &mut Code, pos: usize) -> StepResult {
     }
 }
 
-fn run(mut input: Code, a: i64, b: i64) -> i64 {
+fn run(input: &mut Code, a: i64, b: i64) -> i64 {
     let mut pos = 0;
 
     input.data[1] = a;
     input.data[2] = b;
 
     loop {
-        match step(&mut input, pos) {
+        match step(input, pos) {
             StepResult::Done => break,
             StepResult::Error => {
                 println!("Step error");
@@ -84,17 +84,29 @@ fn run(mut input: Code, a: i64, b: i64) -> i64 {
     input.data[0]
 }
 
+fn copy(a: &Code, b: &mut Code) {
+    for (i, j) in a.data.iter().enumerate() {
+        b.data[i] = *j
+    }
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let now = Instant::now();
 
     let input = fs::read_to_string("input.txt")?;
     let code = Code::parse(&input)?;
+    let mut code2 = code.clone();
+    copy(&code, &mut code2);
 
-    let r01 = run(code.clone(), 12, 2);
+    let r01 = run(&mut code2, 12, 2);
 
     let r02 = (0..100)
-        .flat_map(|a| (0..100).map(move |b| (a, b)))
-        .find(|(a, b)| run(code.clone(), *a, *b) == 19690720);
+        .rev()
+        .flat_map(|a| (0..100).rev().map(move |b| (a, b)))
+        .find(|(a, b)| {
+            copy(&code, &mut code2);
+            run(&mut code2, *a, *b) == 19690720
+        });
 
     let total_time = now.elapsed();
 
