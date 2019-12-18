@@ -5,7 +5,7 @@ use std::time::Instant;
 
 #[derive(PartialEq, Debug, Clone)]
 struct Code {
-    data: Vec<i64>,
+    data: Vec<i32>,
 }
 
 impl Code {
@@ -13,7 +13,7 @@ impl Code {
         input
             .split(',')
             .map(|num| num.trim_matches('\n'))
-            .map(|num| num.parse::<i64>())
+            .map(|num| num.parse::<i32>())
             .collect::<Result<Vec<_>, _>>()
             .map(|data| Code { data })
             .map_err(|e| e.into())
@@ -64,7 +64,7 @@ fn step(input: &mut Code, pos: usize) -> StepResult {
     }
 }
 
-fn run(input: &mut Code, a: i64, b: i64) -> i64 {
+fn run(input: &mut Code, a: i32, b: i32) -> i32 {
     let mut pos = 0;
 
     input.data[1] = a;
@@ -84,27 +84,19 @@ fn run(input: &mut Code, a: i64, b: i64) -> i64 {
     input.data[0]
 }
 
-fn copy(a: &Code, b: &mut Code) {
-    for (i, j) in a.data.iter().enumerate() {
-        b.data[i] = *j
-    }
-}
-
 fn main() -> Result<(), Box<dyn Error>> {
     let now = Instant::now();
 
     let input = fs::read_to_string("input.txt")?;
     let code = Code::parse(&input)?;
     let mut code2 = code.clone();
-    copy(&code, &mut code2);
-
     let r01 = run(&mut code2, 12, 2);
 
     let r02 = (0..100)
         .rev()
         .flat_map(|a| (0..100).rev().map(move |b| (a, b)))
         .find(|(a, b)| {
-            copy(&code, &mut code2);
+            code2.data.clone_from_slice(&code.data);
             run(&mut code2, *a, *b) == 19690720
         });
 
