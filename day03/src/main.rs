@@ -1,5 +1,6 @@
 use std::fmt;
 use std::fs;
+use std::time::Instant;
 
 #[derive(PartialEq, Debug)]
 enum Direction {
@@ -57,7 +58,7 @@ impl Wire {
             if step.constain(p) {
                 return Some(current + step.start().distance_to(p));
             } else {
-                current = current + step.lenght();
+                current += step.lenght();
             }
         }
 
@@ -70,23 +71,35 @@ impl Wire {
 struct Board {
     a: Wire,
     b: Wire,
+    crossing: Vec<Point>,
 }
 
 impl Board {
+    fn new(a: Wire, b: Wire) -> Self {
+        let crossing =
+            a.0.iter()
+                .map(|a| b.0.iter().filter_map(move |b| cross(a, b)))
+                .flatten()
+                .collect::<Vec<_>>();
+
+        Self { a, b, crossing }
+    }
+
     pub fn parse(input: &str) -> Self {
         let mut wires = input.lines().map(|line| Wire::parse(line));
         let a = wires.next().expect("invalid input");
         let b = wires.next().expect("invalid input");
 
-        Self { a, b }
+        Self::new(a, b)
     }
 
     pub fn cross_distance(&self) -> Option<i32> {
-        self.crossing().map(|point| point.distance()).min()
+        self.crossing.iter().map(|point| point.distance()).min()
     }
 
     pub fn step_distance(&self) -> Option<i32> {
-        self.crossing()
+        self.crossing
+            .iter()
             .filter_map(
                 |point| match (self.a.steps_to(&point), self.b.steps_to(&point)) {
                     (Some(a), Some(b)) => Some(a + b),
@@ -94,15 +107,6 @@ impl Board {
                 },
             )
             .min()
-    }
-
-    fn crossing(&self) -> impl Iterator<Item = Point> + '_ {
-        self.a
-            .0
-            .iter()
-            .map(move |a| self.b.0.iter().map(move |b| (a, b)))
-            .flatten()
-            .filter_map(|(a, b)| cross(a, b))
     }
 }
 
@@ -256,18 +260,27 @@ fn cross<'a>(a: &'a Segment, b: &'a Segment) -> Option<Point> {
 }
 
 fn main() {
+    let now = Instant::now();
+
     let input = fs::read_to_string("input.txt").expect("input.txt not found");
     let board = Board::parse(&input);
 
-    match board.cross_distance() {
+    let task_a = board.cross_distance();
+    let task_b = board.step_distance();
+
+    let total_time = now.elapsed();
+
+    match task_a {
         Some(q1) => println!("Q1: {}", q1),
         _ => println!("Q1: Not found"),
     }
 
-    match board.step_distance() {
+    match task_b {
         Some(q2) => println!("Q1: {}", q2),
         _ => println!("Q1: Not found"),
     }
+
+    println!("Total time: {}μs", total_time.as_micros());
 }
 
 #[cfg(test)]
