@@ -112,6 +112,7 @@ pub struct IO<'a> {
 }
 
 impl<'a> IO<'a> {
+    #[allow(dead_code)]
     pub fn fail() -> Self {
         let input = || panic!("running without input");
         let output = |_| panic!("running without output");
@@ -122,6 +123,7 @@ impl<'a> IO<'a> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn input(input: impl FnMut() -> i64 + 'a) -> Self {
         let output = |_| panic!("running without output");
 
@@ -130,6 +132,8 @@ impl<'a> IO<'a> {
             output: Box::new(output),
         }
     }
+
+    #[allow(dead_code)]
     pub fn output(output: impl FnMut(i64) + 'a) -> Self {
         let input = || panic!("running without input");
 
@@ -139,6 +143,7 @@ impl<'a> IO<'a> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn new(input: impl FnMut() -> i64 + 'a, output: impl FnMut(i64) + 'a) -> Self {
         Self {
             input: Box::new(input),
@@ -147,6 +152,7 @@ impl<'a> IO<'a> {
     }
 }
 
+#[allow(dead_code)]
 pub struct CPUInfo {
     pub ticks: usize,
     pub addr: usize,
@@ -158,8 +164,6 @@ pub struct CPU {
     ip: usize,
     ticks: usize,
     rb: i64,
-    // input: Option<Box<dyn FnMut() -> i64 + 'a>>,
-    // output: Option<Box<dyn FnMut(i64) + 'a>>,
 }
 
 impl CPU {
@@ -171,8 +175,6 @@ impl CPU {
             ip: 0,
             ticks: 0,
             rb: 0,
-            // input: None,
-            // output: None,
         }
     }
 
@@ -200,16 +202,6 @@ impl CPU {
     }
 
     pub fn run(&mut self, mut io: IO) {
-        loop {
-            if self.tick(&mut io) == State::Halted {
-                break;
-            }
-        }
-    }
-
-    pub fn run_without_io(&mut self) {
-        let mut io = IO::fail();
-
         loop {
             if self.tick(&mut io) == State::Halted {
                 break;
@@ -303,6 +295,7 @@ impl CPU {
         self.mem.set(addr, value);
     }
 
+    #[allow(dead_code)]
     pub fn info(&self) -> CPUInfo {
         CPUInfo {
             ticks: self.ticks,
@@ -386,7 +379,7 @@ mod test {
     fn test_add() {
         let programm = vec![1101, 11, 22, 0, 101, -30, 0, 1, 99];
         let mut cpu = CPU::new(programm);
-        cpu.run_without_io();
+        cpu.run(IO::fail());
 
         assert_eq!(3, cpu.mem.get(1));
     }
