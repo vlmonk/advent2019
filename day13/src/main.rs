@@ -1,5 +1,6 @@
 use crate::vm::{CPU, IO};
 use std::collections::HashMap;
+use std::fmt;
 use std::fs;
 use std::hash::Hash;
 use std::mem;
@@ -69,6 +70,24 @@ impl Tile {
     }
 }
 
+impl fmt::Display for Tile {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        use Tile::*;
+        match self {
+            Empty => write!(fmt, " "),
+            Wall => write!(
+                fmt,
+                "{}█{}",
+                color::Fg(color::Yellow),
+                color::Fg(color::Reset)
+            ),
+            Block => write!(fmt, "▄"),
+            Paddle => write!(fmt, "↑"),
+            Ball => write!(fmt, "⊗"),
+        }
+    }
+}
+
 #[derive(PartialEq, Eq, Hash)]
 struct Coord {
     x: i64,
@@ -84,14 +103,10 @@ impl Coord {
 struct Game {
     input: String,
     field: Field,
-    // cpu: CPU,
 }
 
 impl Game {
     pub fn new(input: &str) -> Self {
-        // let cpu = CPU::new_from_str(input);
-        // let field = Field::new();
-
         Self {
             field: Field::new(),
             input: input.to_owned(),
@@ -121,15 +136,9 @@ impl Game {
 
         let draw = |x: i64, y: i64, c: i64| {
             let goto = cursor::Goto(x as u16 + 1, y as u16 + 1);
-            let c = match c {
-                0 => " ".to_owned(),
-                1 => format!("{}█{}", color::Fg(color::Yellow), color::Fg(color::Reset)),
-                2 => "▄".to_owned(),
-                3 => "↑".to_owned(),
-                4 => "⊗".to_owned(),
-                _ => "x".to_owned(),
-            };
-            println!("{}{}", goto, c);
+            let tile = Tile::from_i64(c);
+
+            println!("{}{}", goto, tile);
         };
 
         let show_score = |v: i64| {
