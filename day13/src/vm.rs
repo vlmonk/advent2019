@@ -18,6 +18,7 @@ impl Mode {
 
 type ModeSet = (Mode, Mode, Mode);
 
+#[derive(Clone)]
 struct Mem {
     raw: Vec<i64>,
     max_addr: usize,
@@ -137,6 +138,13 @@ impl<'a> IO<'a> {
             output: Box::new(output),
         }
     }
+
+    pub fn new(input: impl FnMut() -> i64 + 'a, output: impl FnMut(i64) + 'a) -> Self {
+        Self {
+            input: Box::new(input),
+            output: Box::new(output),
+        }
+    }
 }
 
 pub struct CPUInfo {
@@ -144,6 +152,7 @@ pub struct CPUInfo {
     pub addr: usize,
 }
 
+#[derive(Clone)]
 pub struct CPU {
     mem: Mem,
     ip: usize,
@@ -288,6 +297,10 @@ impl CPU {
             Mode::Position => self.mem.set(addr as usize, value),
             Mode::Relative => self.mem.set((self.rb + addr) as usize, value),
         }
+    }
+
+    pub fn set_mem(&mut self, addr: usize, value: i64) {
+        self.mem.set(addr, value);
     }
 
     pub fn info(&self) -> CPUInfo {
