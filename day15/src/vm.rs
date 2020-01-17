@@ -137,6 +137,13 @@ impl<'a> IO<'a> {
             output: Box::new(output),
         }
     }
+
+    pub fn new(input: impl FnMut() -> i64 + 'a, output: impl FnMut(i64) + 'a) -> Self {
+        Self {
+            input: Box::new(input),
+            output: Box::new(output),
+        }
+    }
 }
 
 pub struct CPUInfo {
@@ -196,6 +203,26 @@ impl CPU {
                 break;
             }
         }
+    }
+
+    pub fn run_till_output(&mut self, input: impl FnMut() -> i64) -> Option<i64> {
+        let mut output_value: Option<i64> = None;
+        let output = |v: i64| {
+            output_value.replace(v);
+        };
+
+        let mut io = IO::new(input, output);
+
+        loop {
+            match self.tick(&mut io) {
+                State::Halted => return None,
+                State::Output => break,
+                _ => {}
+            }
+        }
+
+        drop(io);
+        output_value
     }
 
     pub fn run_without_io(&mut self) {
@@ -386,7 +413,7 @@ mod test {
         let io = IO::output(|v| output.push(v));
         cpu.run(io);
 
-        assert_eq!(1219070632396864, output[0]);
+        assert_eq!(1_219_070_632_396_864, output[0]);
     }
 
     #[test]
