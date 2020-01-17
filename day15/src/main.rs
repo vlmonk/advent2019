@@ -81,19 +81,12 @@ impl Robot {
 
         loop {
             let next_move = next_moves.pop();
-            dbg!(next_move);
-
             match next_move {
                 Some(NextStep::MoveTo(step)) => {
                     let r = self.walk(step);
-                    dbg!(&r);
-
                     match r {
-                        StepResult::Wall => {
-                            println!("WALL FOUND");
-                        }
+                        StepResult::Wall => {}
                         StepResult::Moved => {
-                            println!("MOVED");
                             let back = step.back();
                             steps += 1;
                             next_moves.push(NextStep::BackTo(back));
@@ -106,14 +99,13 @@ impl Robot {
                         }
 
                         StepResult::MovedToOxygen => {
-                            println!("OXYGEN FOUND");
-                            return steps;
+                            return steps + 1;
                         }
                     }
                 }
                 Some(NextStep::BackTo(step)) => {
-                    println!("Back to {:?}", step);
                     self.walk(step);
+                    steps -= 1;
                 }
                 None => panic!("out of moves"),
             }
