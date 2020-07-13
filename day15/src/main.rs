@@ -6,7 +6,7 @@ mod vm;
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-enum Step {
+pub enum Step {
     Nord,
     East,
     South,
